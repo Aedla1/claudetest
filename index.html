@@ -2,76 +2,1750 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>5-Digit Random Number Generator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BENGALURU GRIDLOCK — The City That Never Moves</title>
+<meta name="description" content="A cinematic data visualization of Bangalore's traffic crisis and the solutions being deployed to fix it.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DSEG7+Classic:wght@700&family=VT323&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Three.js r160 via importmap -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<!-- GSAP 3 + ScrollTrigger -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
 <style>
-  body {
-    font-family: system-ui, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    margin: 0;
-    background: #0d0d0d;
-  }
-  #number {
-    font-family: 'VT323', monospace;
-    font-size: 10rem;
-    letter-spacing: 0.15em;
-    margin-bottom: 1.5rem;
-    color: #39ff14;
-    text-shadow: 0 0 10px #39ff14, 0 0 25px #39ff14, 0 0 45px rgba(57,255,20,0.6);
-    background: #111;
-    padding: 0.2em 0.6em;
-    border-radius: 10px;
-    border: 4px solid #222;
-  }
-  button {
-    font-size: 1.1rem;
-    padding: 0.6em 1.4em;
-    border: none;
-    border-radius: 8px;
-    background: #2563eb;
-    color: white;
-    cursor: pointer;
-  }
-  button:hover {
-    background: #1d4ed8;
-  }
+/* ============================================================
+   ROOT VARIABLES — the entire color / spacing system
+   ============================================================ */
+:root{
+  --bg:#0A0A0F;
+  --red-primary:#FF2D2D;
+  --red-deep:#8B0000;
+  --amber:#FF8C00;
+  --green-safe:#00FF88;
+  --green-glow:#00CC66;
+  --blue-cool:#00A8FF;
+  --grid:#1A1A2E;
+  --text-primary:#F0F0F0;
+  --text-muted:#888899;
+  --glass-bg:rgba(255,255,255,0.04);
+  --glass-border:rgba(255,255,255,0.1);
+  --section-pad: clamp(24px, 6vw, 96px);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{background:var(--bg);scroll-behavior:auto;}
+body{
+  background:var(--bg);
+  color:var(--text-primary);
+  font-family:'Space Grotesk',sans-serif;
+  overflow-x:hidden;
+  cursor:none;
+  width:100%;
+}
+a{color:inherit;}
+::selection{background:var(--red-primary);color:#000;}
+.uc{text-transform:uppercase;letter-spacing:0.08em;}
+.muted{color:var(--text-muted);}
+canvas{display:block;}
+::-webkit-scrollbar{width:8px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--red-deep);border-radius:4px;}
+
+/* ============================================================
+   CUSTOM CURSOR
+   ============================================================ */
+#cursor{
+  position:fixed;top:0;left:0;width:12px;height:12px;
+  border:1px solid var(--red-primary);border-radius:50%;
+  transform:translate(-50%,-50%);
+  pointer-events:none;z-index:9999;
+  transition:width .18s ease,height .18s ease,background .18s ease;
+  mix-blend-mode:screen;
+}
+#cursor.hover{width:28px;height:28px;background:rgba(255,45,45,0.3);}
+#cursor.crosshair{width:36px;height:36px;background:transparent;border:1px solid var(--red-primary);}
+#cursor.crosshair::before,#cursor.crosshair::after{
+  content:'';position:absolute;background:var(--red-primary);
+}
+#cursor.crosshair::before{left:50%;top:-8px;width:1px;height:8px;transform:translateX(-50%);}
+#cursor.crosshair::after{top:50%;left:-8px;width:8px;height:1px;transform:translateY(-50%);}
+@media (hover:none){#cursor{display:none;}body{cursor:auto;}}
+
+/* ============================================================
+   LOADING SCREEN
+   ============================================================ */
+#loading{
+  position:fixed;inset:0;background:#000;z-index:10000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
+}
+#loading canvas{width:min(480px,80vw);height:120px;}
+#loading .label{font-size:0.85rem;letter-spacing:0.15em;color:var(--text-muted);}
+#loading .pct{font-size:3rem;font-weight:700;color:var(--red-primary);text-shadow:0 0 30px rgba(255,45,45,.6);}
+
+/* ============================================================
+   PROGRESS BAR + NAV
+   ============================================================ */
+#progress-bar{
+  position:fixed;top:0;left:0;height:2px;background:var(--red-primary);
+  box-shadow:0 0 8px var(--red-primary);z-index:9000;width:0%;
+}
+#navbar{
+  position:fixed;top:0;left:0;width:100%;z-index:8000;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px clamp(20px,4vw,48px);
+  transition:background .4s ease,backdrop-filter .4s ease,padding .4s ease;
+}
+#navbar.scrolled{background:rgba(0,0,0,0.55);backdrop-filter:blur(20px);padding:12px clamp(20px,4vw,48px);}
+#navbar .logo{font-weight:700;font-size:1.1rem;letter-spacing:0.05em;}
+#navbar .logo span{color:var(--red-primary);}
+#nav-dots{display:flex;gap:10px;}
+#nav-dots .dot{
+  width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);
+  cursor:pointer;transition:background .3s,transform .3s;
+}
+#nav-dots .dot.active{background:var(--red-primary);transform:scale(1.4);box-shadow:0 0 8px var(--red-primary);}
+
+/* ============================================================
+   GENERIC LAYOUT / SECTIONS
+   ============================================================ */
+section{position:relative;width:100%;}
+.section-inner{position:relative;z-index:2;padding:var(--section-pad);}
+.fixed-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;}
+.section-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:0;}
+.overlay{position:relative;z-index:2;pointer-events:none;}
+.overlay a,.overlay button,.overlay input,.overlay .card{pointer-events:auto;}
+.eyebrow{font-size:0.8rem;letter-spacing:0.2em;color:var(--red-primary);font-weight:600;}
+.section-head{font-size:clamp(2.2rem,6vw,5.5rem);font-weight:700;line-height:1.05;}
+
+/* glass card system */
+.card{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:14px;backdrop-filter:blur(16px);position:relative;
+  padding:22px;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;width:100%;height:1px;
+  background:var(--red-primary);
+}
+.card.solution::before{background:var(--green-safe);}
+.card:hover{transform:translateY(-4px);transition:transform .3s ease;}
+
+/* ============================================================
+   SECTION 1 — HERO
+   ============================================================ */
+#sec1{height:100vh;}
+#hero-overlay{
+  height:100vh;display:flex;flex-direction:column;justify-content:center;
+  padding:0 clamp(20px,6vw,80px);
+}
+.badge{
+  display:inline-block;align-self:flex-start;font-size:0.75rem;letter-spacing:0.18em;
+  border:1px solid var(--glass-border);padding:8px 16px;border-radius:100px;
+  background:var(--glass-bg);margin-bottom:24px;color:var(--text-muted);
+}
+#hero-headline{font-weight:800;letter-spacing:-0.02em;line-height:0.95;}
+#hero-headline .l1{display:block;font-size:clamp(1.6rem,4vw,2.6rem);color:var(--text-muted);font-weight:500;}
+#hero-headline .l2{display:block;font-size:clamp(3.2rem,11vw,9rem);color:var(--red-primary);text-shadow:0 0 60px rgba(255,45,45,.5);}
+#hero-headline .l3{display:block;font-size:clamp(2.6rem,8vw,6.5rem);color:var(--text-primary);}
+#hero-counter{margin-top:36px;font-size:clamp(1.4rem,3vw,2.2rem);font-weight:600;}
+#hero-counter b{color:var(--red-primary);font-size:1.3em;}
+#hero-sub{margin-top:10px;font-size:0.95rem;}
+#scroll-cue{
+  position:absolute;bottom:40px;left:50%;transform:translateX(-50%);
+  font-size:0.8rem;letter-spacing:0.2em;color:var(--text-muted);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.3;}50%{opacity:1;}}
+
+/* ============================================================
+   SECTION 2 — DATA
+   ============================================================ */
+#sec2{background:linear-gradient(#0A0A0F,#0d0d16);}
+#chart-labels{position:absolute;inset:0;}
+#sec2-content{position:relative;z-index:2;}
+.chart-label{
+  position:absolute;text-align:center;font-size:0.7rem;color:var(--text-muted);
+  transform:translate(-50%,-100%);white-space:nowrap;pointer-events:none;
+}
+.chart-label b{display:block;color:var(--red-primary);font-size:0.95rem;}
+#kpi-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:16px;
+  padding:60px clamp(20px,6vw,80px) 120px;position:relative;z-index:2;
+}
+.kpi-card .icon{font-size:1.6rem;}
+.kpi-card .label{font-size:0.75rem;margin-top:10px;color:var(--text-muted);}
+.kpi-card .value{font-size:1.6rem;font-weight:700;margin-top:6px;color:var(--text-primary);}
+@media(max-width:1100px){#kpi-grid{grid-template-columns:repeat(2,1fr);}}
+
+/* ============================================================
+   SECTION 3 — MAP
+   ============================================================ */
+#sec3{height:100vh;overflow:hidden;background:#05050a;}
+#sec3 .section-canvas{cursor:none;}
+#map-head{position:absolute;top:110px;left:0;width:100%;text-align:center;z-index:3;}
+#map-tooltip{
+  position:absolute;z-index:5;width:280px;padding:18px;display:none;
+  transform:translate(20px,-50%);
+}
+#map-tooltip h3{color:var(--red-primary);font-size:1.15rem;margin-bottom:8px;}
+#map-tooltip .badge-cat{
+  display:inline-block;font-size:0.65rem;padding:3px 10px;border-radius:100px;
+  margin-bottom:10px;letter-spacing:0.1em;font-weight:600;
+}
+#sev-bar{display:flex;gap:3px;margin:8px 0;}
+#sev-bar span{flex:1;height:6px;border-radius:2px;background:rgba(255,255,255,0.15);}
+#sev-bar span.fill{background:var(--red-primary);}
+#time-slider-wrap{
+  position:absolute;bottom:28px;left:50%;transform:translateX(-50%);z-index:5;
+  width:min(560px,86vw);text-align:center;
+}
+#time-slider-wrap input{width:100%;accent-color:var(--red-primary);}
+#time-label{font-size:0.85rem;margin-top:6px;letter-spacing:0.1em;}
+#map-hint{position:absolute;top:170px;left:50%;transform:translateX(-50%);font-size:0.75rem;color:var(--text-muted);z-index:3;}
+
+/* ============================================================
+   SECTION 4 — HORIZONTAL SCROLL CORRIDORS
+   ============================================================ */
+#sec4{height:100vh;overflow:hidden;background:#0a0a12;}
+#sec4 .pin-wrap{height:100%;display:flex;flex-direction:column;justify-content:center;}
+#sec4 h2{padding:0 clamp(20px,6vw,80px);margin-bottom:20px;}
+#h-track{display:flex;gap:28px;padding-left:clamp(20px,6vw,80px);width:max-content;}
+.corridor-card{
+  width:400px;flex-shrink:0;min-height:520px;display:flex;flex-direction:column;
+}
+.corridor-card h3{color:var(--red-primary);font-size:1.5rem;margin-bottom:6px;}
+.corridor-card .sub{font-size:0.85rem;color:var(--text-muted);margin-bottom:20px;}
+.corridor-card .stat-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:8px 0;border-bottom:1px solid var(--glass-border);}
+.corridor-card .stat-row b{color:var(--text-primary);}
+.corridor-card .insight{margin-top:auto;font-size:0.8rem;color:var(--amber);border-top:1px solid var(--glass-border);padding-top:12px;}
+.bar-viz{height:14px;background:rgba(255,255,255,0.08);border-radius:8px;overflow:hidden;margin:16px 0;position:relative;}
+.bar-viz .fill{height:100%;background:var(--blue-cool);border-radius:8px;width:0%;}
+.bar-viz .overflow{position:absolute;top:0;right:0;height:100%;background:var(--red-primary);width:0%;box-shadow:0 0 12px var(--red-primary);}
+
+/* ============================================================
+   SCROLL-PIN PATTERN — used by sections 5, 6, 9: a tall .pin-outer
+   provides the scroll distance, while .pin-inner sticks to the
+   viewport for its whole duration so its HUD children stay put.
+   ============================================================ */
+.pin-outer{position:relative;}
+.pin-inner{position:sticky;top:0;height:100vh;overflow:hidden;}
+.pin-canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+/* ============================================================
+   SECTION 5 — TIMELINE
+   ============================================================ */
+#sec5{background:#08080e;}
+#node-tooltip{
+  position:absolute;top:18%;left:50%;transform:translate(-50%,0);
+  width:min(420px,86vw);text-align:center;z-index:3;opacity:0;
+}
+#node-tooltip .year{font-size:2.2rem;font-weight:800;}
+#node-tooltip .flash{position:fixed;inset:0;background:var(--red-primary);opacity:0;pointer-events:none;z-index:20;}
+#root-causes{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding:40px clamp(20px,6vw,80px) 120px;position:relative;z-index:2;}
+#root-causes .card h4{font-size:1rem;margin-bottom:10px;}
+#root-causes .card p{font-size:0.8rem;color:var(--text-muted);margin-top:6px;line-height:1.5;}
+@media(max-width:1000px){#root-causes{grid-template-columns:repeat(2,1fr);}}
+
+/* ============================================================
+   SECTION 6 — COST
+   ============================================================ */
+#sec6{background:#07070c;}
+#cost-hero{position:absolute;top:14%;left:50%;transform:translate(-50%,0);text-align:center;z-index:3;width:100%;}
+#cost-hero .amt{font-size:clamp(3rem,10vw,7rem);font-weight:800;color:var(--amber);text-shadow:0 0 50px rgba(255,140,0,.5);}
+#donuts{display:flex;justify-content:center;gap:60px;flex-wrap:wrap;padding:60px 20px;position:relative;z-index:2;}
+.donut-item{text-align:center;}
+.donut-item .pct{font-size:1.6rem;font-weight:700;margin-top:10px;}
+#comparisons{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:0 clamp(20px,6vw,80px) 120px;position:relative;z-index:2;}
+#comparisons .card{font-size:0.9rem;}
+@media(max-width:1000px){#comparisons{grid-template-columns:1fr;}}
+
+/* ============================================================
+   SECTION 7 — SOLUTIONS ROADMAP
+   ============================================================ */
+#sec7{min-height:100vh;background:#05050a;padding:100px 0;}
+#sec7-grid{display:grid;grid-template-columns:0.8fr 1.2fr;gap:40px;padding:0 clamp(20px,6vw,80px);align-items:start;}
+#roadmap-canvas-wrap{position:sticky;top:100px;height:78vh;border-radius:16px;overflow:hidden;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.03),transparent);}
+#solution-cards{display:flex;flex-direction:column;gap:22px;}
+.sol-card{perspective:1400px;height:260px;cursor:pointer;}
+.sol-card-inner{position:relative;width:100%;height:100%;transition:transform .6s cubic-bezier(.4,.2,.2,1);transform-style:preserve-3d;}
+.sol-card.flipped .sol-card-inner{transform:rotateY(180deg);}
+.sol-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:14px;padding:20px;overflow-y:auto;}
+.sol-face.back{transform:rotateY(180deg);}
+.sol-face.back::-webkit-scrollbar{width:5px;}
+.sol-cat{font-size:0.65rem;letter-spacing:0.12em;font-weight:600;}
+.sol-status{float:right;font-size:0.65rem;padding:3px 10px;border-radius:100px;background:rgba(255,255,255,0.08);}
+.sol-face h3{font-size:1.3rem;margin:10px 0 2px;clear:both;}
+.sol-face .sub{font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;}
+.sol-face .keystat{font-size:1.1rem;color:var(--green-safe);font-weight:600;margin-top:16px;}
+.sol-face.back h5{font-size:0.72rem;letter-spacing:0.1em;color:var(--text-muted);margin:12px 0 4px;}
+.sol-face.back h5:first-child{margin-top:0;}
+.sol-face.back p,.sol-face.back li{font-size:0.78rem;line-height:1.55;color:var(--text-primary);}
+.sol-face.back ul{padding-left:16px;margin-bottom:4px;}
+.stars{color:var(--amber);letter-spacing:2px;}
+#roadmap-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:0.7rem;color:var(--text-muted);}
+#roadmap-legend span{display:inline-flex;align-items:center;gap:6px;}
+#roadmap-legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+@media(max-width:900px){#sec7-grid{grid-template-columns:1fr;}#roadmap-canvas-wrap{height:40vh;position:relative;top:0;}}
+
+/* ============================================================
+   SECTION 8 — IMPACT MATRIX
+   ============================================================ */
+#sec8{min-height:100vh;background:#0a0a12;padding:100px clamp(20px,6vw,80px);}
+#filters{display:flex;gap:10px;margin:24px 0;flex-wrap:wrap;}
+#filters button{
+  background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--text-primary);
+  padding:9px 18px;border-radius:100px;font-family:inherit;font-size:0.75rem;letter-spacing:0.08em;
+}
+#filters button.active{background:var(--red-primary);border-color:var(--red-primary);}
+#scatter-wrap{width:100%;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:14px;padding:10px;}
+#scatter-canvas{width:100%;height:520px;}
+#scatter-tooltip{position:fixed;background:#000;border:1px solid var(--red-primary);padding:10px 14px;border-radius:8px;font-size:0.8rem;pointer-events:none;z-index:50;display:none;}
+table#summary-table{width:100%;border-collapse:collapse;margin-top:50px;font-size:0.82rem;}
+table#summary-table th,table#summary-table td{padding:12px 10px;text-align:left;border-bottom:1px solid var(--glass-border);}
+table#summary-table th{color:var(--text-muted);font-weight:500;letter-spacing:0.06em;font-size:0.72rem;}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+#summary-table-wrap{overflow-x:auto;}
+
+/* ============================================================
+   SECTION 9 — CLOSING
+   ============================================================ */
+#sec9{background:#000;}
+#split-labels{position:absolute;top:14%;width:100%;display:flex;justify-content:space-between;padding:0 40px;z-index:3;font-size:0.85rem;}
+#divider-handle{
+  position:absolute;top:0;bottom:0;width:4px;background:var(--text-primary);z-index:4;
+  left:50%;cursor:ew-resize;box-shadow:0 0 20px rgba(255,255,255,.6);
+}
+#divider-handle::after{
+  content:'⇔';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:40px;height:40px;background:#fff;color:#000;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+}
+#tabs{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:5;}
+#tabs button{background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--text-primary);padding:8px 16px;border-radius:100px;font-size:0.72rem;font-family:inherit;}
+#tabs button.active{background:var(--red-primary);}
+#tab-content{position:absolute;bottom:16%;left:50%;transform:translateX(-50%);width:min(600px,86vw);text-align:center;font-size:0.85rem;z-index:5;background:rgba(0,0,0,.5);backdrop-filter:blur(10px);padding:16px 20px;border-radius:12px;border:1px solid var(--glass-border);}
+#closing{position:relative;z-index:2;text-align:center;padding:140px clamp(20px,6vw,80px);}
+#closing .line{font-size:clamp(1.6rem,4.5vw,3.4rem);font-weight:700;opacity:0;}
+#closing .line.red{color:var(--red-primary);}
+#closing-footer{margin-top:50px;font-size:0.85rem;line-height:2;}
+
+/* ============================================================
+   SOUND TOGGLE + FOOTER
+   ============================================================ */
+#sound-toggle{
+  position:fixed;bottom:24px;right:24px;z-index:7000;width:48px;height:48px;border-radius:50%;
+  background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(10px);
+  font-size:1.2rem;color:var(--text-primary);
+}
+#site-footer{padding:40px clamp(20px,6vw,80px);font-size:0.72rem;color:var(--text-muted);line-height:1.8;border-top:1px solid var(--glass-border);position:relative;z-index:2;background:#000;}
+
+@media(max-width:768px){
+  #kpi-grid{grid-template-columns:repeat(2,1fr);}
+  #root-causes{grid-template-columns:1fr;}
+  #comparisons{grid-template-columns:1fr;}
+  #donuts{gap:30px;}
+  #nav-dots{display:none;}
+}
 </style>
 </head>
 <body>
-  <div id="number">00000</div>
-  <button onclick="generate()">Generate</button>
 
-  <script>
-    let rolling = false;
+<!-- ============================================================
+     LOADING SCREEN
+     ============================================================ -->
+<div id="loading">
+  <canvas id="wave-canvas" width="480" height="120"></canvas>
+  <div class="label uc">LOADING BENGALURU'S TRAFFIC DATA...</div>
+  <div class="pct" id="load-pct">0%</div>
+</div>
 
-    function generate() {
-      if (rolling) return;
-      rolling = true;
+<div id="cursor"></div>
+<div id="progress-bar"></div>
 
-      const display = document.getElementById('number');
-      const button = document.querySelector('button');
-      button.disabled = true;
+<nav id="navbar">
+  <div class="logo">BLR <span>GRIDLOCK</span></div>
+  <div id="nav-dots"></div>
+</nav>
 
-      const duration = 3000 + Math.random() * 1000; // 3-4 seconds
-      const start = Date.now();
+<main>
 
-      const interval = setInterval(() => {
-        display.textContent = Math.floor(10000 + Math.random() * 90000);
+<!-- ============================================================
+     SECTION 1 — HERO
+     ============================================================ -->
+<section id="sec1" data-nav="The Problem">
+  <canvas id="hero-canvas" class="fixed-canvas"></canvas>
+  <div id="hero-overlay" class="overlay">
+    <span class="badge uc">TomTom Traffic Index 2025</span>
+    <h1 id="hero-headline">
+      <span class="l1 uc">The World's</span>
+      <span class="l2 uc">#2 Most</span>
+      <span class="l3 uc">Congested City</span>
+    </h1>
+    <div id="hero-counter"><b id="hero-count">0</b> hrs 40 min lost per commuter / year</div>
+    <div id="hero-sub" class="muted">That's nearly 7 full days. Stuck in traffic. Every year.</div>
+  </div>
+  <div id="scroll-cue" class="uc overlay">Scroll to explore ↓</div>
+</section>
 
-        if (Date.now() - start >= duration) {
-          clearInterval(interval);
-          display.textContent = Math.floor(10000 + Math.random() * 90000);
-          button.disabled = false;
-          rolling = false;
-        }
-      }, 60);
+<!-- ============================================================
+     SECTION 2 — DATA DOESN'T LIE
+     ============================================================ -->
+<section id="sec2" data-nav="The Data">
+  <div class="pin-outer" id="sec2-pin" style="min-height:220vh;">
+    <div class="pin-inner">
+      <canvas id="chart-canvas" class="pin-canvas"></canvas>
+      <div id="chart-labels" class="overlay"></div>
+    </div>
+  </div>
+  <div id="sec2-content">
+    <div class="section-inner" style="padding-bottom:0;">
+      <div class="eyebrow uc">Section 02</div>
+      <h2 class="section-head">DATA<br>DOESN'T LIE.</h2>
+    </div>
+    <div id="kpi-grid"></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 3 — INTERACTIVE MAP
+     ============================================================ -->
+<section id="sec3" data-nav="Hotspots">
+  <div id="map-head" class="overlay">
+    <div class="eyebrow uc">Section 03</div>
+    <h2 class="section-head" style="font-size:clamp(1.8rem,4.5vw,3.2rem);">10 JUNCTIONS. ONE CITY.<br>ZERO MOVEMENT.</h2>
+  </div>
+  <div id="map-hint" class="overlay uc">Drag to orbit · Scroll to zoom · Hover a hotspot</div>
+  <canvas id="map-canvas" class="section-canvas" style="position:absolute;"></canvas>
+  <div id="map-tooltip" class="card overlay"></div>
+  <div id="time-slider-wrap" class="overlay">
+    <input type="range" id="time-slider" min="0" max="23" step="0.5" value="8">
+    <div id="time-label" class="uc"></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 4 — ROADS OF SUFFERING (horizontal scroll)
+     ============================================================ -->
+<section id="sec4" data-nav="Corridors">
+  <div class="pin-wrap">
+    <div>
+      <div class="eyebrow uc" style="padding:0 clamp(20px,6vw,80px);">Section 04</div>
+      <h2 class="section-head" style="font-size:clamp(1.8rem,4.5vw,3.2rem);">ROADS OF SUFFERING</h2>
+    </div>
+    <div id="h-track"></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 5 — HOW DID WE GET HERE (3D timeline)
+     ============================================================ -->
+<section id="sec5" data-nav="Timeline">
+  <div class="pin-outer" id="sec5-pin" style="min-height:500vh;">
+    <div class="pin-inner">
+      <canvas id="timeline-canvas" class="pin-canvas"></canvas>
+      <div id="node-tooltip" class="card overlay"></div>
+      <div class="overlay" style="position:absolute;top:6%;width:100%;text-align:center;">
+        <div class="eyebrow uc">Section 05</div>
+        <h2 class="section-head" style="font-size:clamp(1.6rem,4vw,2.8rem);">HOW DID WE GET HERE?</h2>
+      </div>
+    </div>
+  </div>
+  <div id="root-causes"></div>
+</section>
+<div class="flash" id="screen-flash" style="position:fixed;inset:0;background:var(--red-primary);opacity:0;pointer-events:none;z-index:20;"></div>
+
+<!-- ============================================================
+     SECTION 6 — COUNT THE DAMAGE
+     ============================================================ -->
+<section id="sec6" data-nav="The Cost">
+  <div class="pin-outer" id="sec6-pin" style="min-height:280vh;">
+    <div class="pin-inner">
+      <canvas id="cost-canvas" class="pin-canvas"></canvas>
+      <div id="cost-hero" class="overlay">
+        <div class="eyebrow uc">Section 06</div>
+        <div class="amt">₹<span id="cost-count">0</span> CR</div>
+        <div class="uc" style="margin-top:10px;letter-spacing:.1em;">Lost to traffic every single year</div>
+        <div class="muted" style="margin-top:8px;font-size:.85rem;">≈ $2.4 Billion USD | ≈ ₹5.4 Cr per hour, 24/7</div>
+      </div>
+    </div>
+  </div>
+  <div id="donuts"></div>
+  <div id="comparisons"></div>
+</section>
+
+<!-- ============================================================
+     SECTION 7 — SOLUTIONS ROADMAP
+     ============================================================ -->
+<section id="sec7" data-nav="Solutions">
+  <div class="section-inner" style="padding-bottom:0;">
+    <div class="eyebrow uc" style="color:var(--green-safe);">Section 07</div>
+    <h2 class="section-head">THE SOLUTIONS<br>ROADMAP</h2>
+    <p class="muted" style="max-width:640px;margin-top:16px;">Nine initiatives, four categories, one goal — a city that moves. Hover a card to flip it for the full data.</p>
+  </div>
+  <div id="sec7-grid">
+    <div id="roadmap-canvas-wrap">
+      <canvas id="roadmap-canvas" class="section-canvas" style="position:absolute;"></canvas>
+      <div id="roadmap-legend" class="overlay" style="position:absolute;bottom:14px;left:14px;"></div>
+    </div>
+    <div id="solution-cards"></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 8 — IMPACT MATRIX
+     ============================================================ -->
+<section id="sec8" data-nav="Matrix">
+  <div class="eyebrow uc">Section 08</div>
+  <h2 class="section-head">SOLUTIONS IMPACT MATRIX</h2>
+  <p class="muted" style="max-width:640px;margin-top:16px;">Time to impact vs. congestion reduction potential. Bubble size = budget.</p>
+  <div id="filters"></div>
+  <div id="scatter-wrap">
+    <canvas id="scatter-canvas"></canvas>
+  </div>
+  <div id="scatter-tooltip"></div>
+  <div id="summary-table-wrap">
+    <table id="summary-table"></table>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION 9 — CAN BENGALURU BE SAVED
+     ============================================================ -->
+<section id="sec9" data-nav="Verdict">
+  <div class="pin-outer" id="sec9-pin" style="min-height:280vh;">
+    <div class="pin-inner">
+      <canvas id="split-canvas" class="pin-canvas"></canvas>
+      <div id="split-labels" class="overlay">
+        <div><b class="uc">Today — 2025</b><br><span class="muted">16.6 km/h avg · Rank #2</span></div>
+        <div style="text-align:right;"><b class="uc" style="color:var(--green-safe);">Target 2035</b><br><span class="muted">30 km/h avg · Rank #20+</span></div>
+      </div>
+      <div id="divider-handle"></div>
+      <div id="tabs"></div>
+      <div id="tab-content" class="card"></div>
+    </div>
+  </div>
+  <div id="closing">
+    <div class="line uc">Until all 9 solutions align —</div>
+    <div class="line red uc">Bengaluru waits.</div>
+    <div class="line uc">168 hours a year.</div>
+    <div class="line uc">7 days.</div>
+    <div class="line red uc">Every. Single. Commuter.</div>
+    <div id="closing-footer" class="muted">
+      Total investment in pipeline: ₹73,600+ Crore<br>
+      Time to meaningful relief: 2027 at earliest<br>
+      Time to real transformation: 2031–2035
+    </div>
+  </div>
+</section>
+
+</main>
+
+<button id="sound-toggle" title="Toggle ambient sound">🔇</button>
+
+<footer id="site-footer">
+  Data: TomTom Traffic Index 2024–25 | INRIX Global Traffic Scorecard | Karnataka 5th State Finance Commission 2026 | BMRCL | BBMP Budget FY2025-26 | BMLTA | Bengaluru Traffic Police | IndiaAI.gov.in | Hindustan Times | Indian Express | The Hindu
+</footer>
+
+<script type="module">
+/* ============================================================
+   GLOBAL SETUP — shared imports, GSAP registration, cursor,
+   loading screen, nav, progress bar. All section modules below
+   attach themselves to `window` scope-free via closures.
+   ============================================================ */
+import * as THREE from 'three';
+
+gsap.registerPlugin(ScrollTrigger);
+
+/* ---- custom cursor with lerp follow ---- */
+const cursorEl = document.getElementById('cursor');
+let curX=innerWidth/2, curY=innerHeight/2, tarX=curX, tarY=curY;
+addEventListener('mousemove', e=>{tarX=e.clientX;tarY=e.clientY;});
+(function cursorLoop(){
+  curX+=(tarX-curX)*0.12; curY+=(tarY-curY)*0.12;
+  cursorEl.style.transform=`translate(${curX}px,${curY}px) translate(-50%,-50%)`;
+  requestAnimationFrame(cursorLoop);
+})();
+document.addEventListener('mouseover', e=>{
+  if(e.target.closest('button,a,.card,input,.hotspot-hit')) cursorEl.classList.add('hover');
+});
+document.addEventListener('mouseout', e=>{
+  if(e.target.closest('button,a,.card,input,.hotspot-hit')) cursorEl.classList.remove('hover');
+});
+
+/* ---- progress bar ---- */
+const progressBar = document.getElementById('progress-bar');
+addEventListener('scroll', ()=>{
+  const h = document.documentElement;
+  const pct = (h.scrollTop)/(h.scrollHeight-h.clientHeight)*100;
+  progressBar.style.width = pct+'%';
+});
+
+/* ---- nav bar frosting + dots ---- */
+const navbar = document.getElementById('navbar');
+addEventListener('scroll', ()=>{ navbar.classList.toggle('scrolled', scrollY>100); });
+const sections = [...document.querySelectorAll('main > section')];
+const dotsWrap = document.getElementById('nav-dots');
+sections.forEach((s,i)=>{
+  const d=document.createElement('div');
+  d.className='dot'+(i===0?' active':'');
+  d.title=s.dataset.nav;
+  d.addEventListener('click', ()=> s.scrollIntoView({behavior:'smooth'}));
+  dotsWrap.appendChild(d);
+});
+ScrollTrigger.create({
+  trigger:'main', start:'top top', end:'bottom bottom',
+  onUpdate:()=>{
+    let idx=0, best=Infinity;
+    sections.forEach((s,i)=>{
+      const r=s.getBoundingClientRect();
+      const dist=Math.abs(r.top);
+      if(r.top<innerHeight*0.6 && dist<best){best=dist; idx=i;}
+    });
+    [...dotsWrap.children].forEach((d,i)=>d.classList.toggle('active', i===idx));
+  }
+});
+
+/* ---- count-up helper used across sections ---- */
+function countUp(el, target, duration=2, decimals=0, prefix='', suffix='', onUpdate){
+  const obj={v:0};
+  gsap.to(obj,{
+    v:target, duration, ease:'power2.out',
+    onUpdate:()=>{
+      el.textContent = prefix+obj.v.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g,',')+suffix;
+      if(onUpdate) onUpdate(obj.v);
     }
-  </script>
+  });
+}
+/* tracks whether a section is anywhere near the viewport, so background
+   3D render loops can skip work while scrolled far away */
+function makeVisibilityFlag(el, margin='40%'){
+  const state={visible:true};
+  new IntersectionObserver(([entry])=>{ state.visible=entry.isIntersecting; },
+    { rootMargin:margin }).observe(el);
+  return state;
+}
+function onEnterOnce(el, cb, opts={}){
+  ScrollTrigger.create({ trigger:el, start:'top 85%', once:true, onEnter:cb, ...opts });
+}
+
+/* ============================================================
+   LOADING SCREEN — animated sine wave + fake percentage
+   ============================================================ */
+(function loadingScreen(){
+  const canvas=document.getElementById('wave-canvas');
+  const ctx=canvas.getContext('2d');
+  const pctEl=document.getElementById('load-pct');
+  let progress=0, raf;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle='#FF2D2D';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    const freq = 0.02 + (progress/100)*0.06;
+    for(let x=0;x<canvas.width;x++){
+      const y = canvas.height/2 + Math.sin(x*freq + progress*0.2)*(20+progress*0.2);
+      x===0? ctx.moveTo(x,y): ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    raf=requestAnimationFrame(draw);
+  }
+  draw();
+  const obj={v:0};
+  gsap.to(obj,{
+    v:100, duration:2.8, ease:'power1.inOut',
+    onUpdate:()=>{ progress=obj.v; pctEl.textContent=Math.floor(obj.v)+'%'; },
+    onComplete:()=>{
+      cancelAnimationFrame(raf);
+      gsap.to('#loading',{opacity:0,duration:0.8,delay:0.2,onComplete:()=>{
+        document.getElementById('loading').style.display='none';
+        heroEntrance();
+      }});
+    }
+  });
+})();
+
+/* ============================================================
+   SECTION 1 — HERO 3D SCENE (road grid + crawling vehicles)
+   ============================================================ */
+const hero = (function(){
+  const canvas=document.getElementById('hero-canvas');
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(25, innerWidth/innerHeight, 1, 300);
+  camera.position.set(0,60,80);
+  camera.lookAt(0,0,0);
+
+  /* --- irregular 20x20 road grid built from LineSegments --- */
+  const gridLines=[];
+  const coords=[];
+  let acc=-30;
+  for(let i=0;i<=20;i++){ coords.push(acc); acc += 2 + Math.sin(i*1.3)*0.9; }
+  const span = coords[coords.length-1]-coords[0];
+  const norm = coords.map(c => (c-coords[0])/span*60-30);
+  norm.forEach(v=>{
+    gridLines.push(-30,0,v, 30,0,v);
+    gridLines.push(v,0,-30, v,0,30);
+  });
+  const roadGeo=new THREE.BufferGeometry();
+  roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridLines,3));
+  const roadMat=new THREE.LineBasicMaterial({color:0xff2d2d, transparent:true, opacity:0.5});
+  const roadMesh=new THREE.LineSegments(roadGeo, roadMat);
+  scene.add(roadMesh);
+
+  /* --- junction point lights (glow red) --- */
+  const junctions=[];
+  for(let i=0;i<8;i++){
+    const x=norm[Math.floor(Math.random()*norm.length)];
+    const z=norm[Math.floor(Math.random()*norm.length)];
+    const light=new THREE.PointLight(0xff2d2d, 1.5, 20);
+    light.position.set(x,1.5,z);
+    scene.add(light);
+    junctions.push(light);
+  }
+  scene.add(new THREE.AmbientLight(0x222233, 1.2));
+
+  /* --- ~400 vehicles as InstancedMesh crawling along the grid --- */
+  const VCOUNT=400;
+  const vGeo=new THREE.BoxGeometry(0.35,0.3,0.7);
+  const vMat=new THREE.MeshStandardMaterial({color:0xffaaaa, emissive:0xff2d2d, emissiveIntensity:0.6});
+  const vehicles=new THREE.InstancedMesh(vGeo, vMat, VCOUNT);
+  const vData=[];
+  const dummy=new THREE.Object3D();
+  for(let i=0;i<VCOUNT;i++){
+    const horiz = Math.random()<0.5;
+    const line = norm[Math.floor(Math.random()*norm.length)];
+    const t0 = Math.random();
+    vData.push({horiz, line, t:t0, speed:0.0006+Math.random()*0.0008});
+  }
+  scene.add(vehicles);
+
+  function layoutVehicles(){
+    vData.forEach((v,i)=>{
+      v.t += v.speed;
+      if(v.t>1) v.t=0;
+      const pos = -30 + v.t*60;
+      if(v.horiz){ dummy.position.set(pos, 0.2, v.line); dummy.rotation.y=Math.PI/2; }
+      else{ dummy.position.set(v.line, 0.2, pos); dummy.rotation.y=0; }
+      dummy.updateMatrix();
+      vehicles.setMatrixAt(i, dummy.matrix);
+    });
+    vehicles.instanceMatrix.needsUpdate=true;
+  }
+
+  let mx=0,my=0, azimuth=0, clock=new THREE.Clock();
+  addEventListener('mousemove', e=>{
+    mx=(e.clientX/innerWidth-0.5)*2;
+    my=(e.clientY/innerHeight-0.5)*2;
+  });
+
+  let active=true;
+  function resize(){
+    const w=innerWidth,h=innerHeight;
+    renderer.setSize(w,h);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+  resize(); addEventListener('resize', resize);
+
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!active) return;
+    const t=clock.getElapsedTime();
+    layoutVehicles();
+    roadMat.opacity = 0.3 + (Math.sin(t*1.6)*0.5+0.5)*0.5;
+    junctions.forEach((l,i)=> l.intensity = 1.2 + Math.sin(t*1.6+i)*0.6);
+    azimuth += 0.0003;
+    const camTargetX = Math.sin(azimuth)*80 + mx*3;
+    const camTargetZ = Math.cos(azimuth)*80;
+    camera.position.x += (camTargetX-camera.position.x)*0.05;
+    camera.position.z += (camTargetZ-camera.position.z)*0.05;
+    camera.position.y += ((60+my*2)-camera.position.y)*0.05;
+    camera.lookAt(0,0,0);
+    renderer.render(scene,camera);
+  }
+  animate();
+  return { setActive:(v)=>active=v };
+})();
+const heroVisible = makeVisibilityFlag(document.getElementById('sec1'));
+(function watchHeroVisibility(){ hero.setActive(heroVisible.visible); requestAnimationFrame(watchHeroVisibility); })();
+
+function heroEntrance(){
+  gsap.timeline()
+    .from('.badge',{opacity:0,y:20,duration:0.6})
+    .from('#hero-headline .l1',{opacity:0,y:30,duration:0.6},'-=0.3')
+    .from('#hero-headline .l2',{opacity:0,y:40,duration:0.7},'-=0.4')
+    .from('#hero-headline .l3',{opacity:0,y:40,duration:0.7},'-=0.5')
+    .from('#hero-counter',{opacity:0,y:20,duration:0.6})
+    .from('#hero-sub',{opacity:0,duration:0.6},'-=0.4')
+    .from('#scroll-cue',{opacity:0,duration:0.6});
+  countUp(document.getElementById('hero-count'), 168, 3, 0);
+}
+
+/* ============================================================
+   SECTION 2 — DATA BARS + KPI GRID
+   ============================================================ */
+(function section2(){
+  const canvas=document.getElementById('chart-canvas');
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(35, 1, 0.1, 200);
+  camera.position.set(0,16,28);
+  camera.lookAt(0,4,0);
+  scene.add(new THREE.AmbientLight(0x333344,1.5));
+  const key=new THREE.PointLight(0xffffff,1,60); key.position.set(10,20,20); scene.add(key);
+
+  const rankData=[{y:'2021',h:5.0,rank:10},{y:'2022',h:6.25,rank:8},{y:'2023',h:8.3,rank:6},{y:'2024',h:16.7,rank:3},{y:'2025',h:25.0,rank:2}];
+  const pctData=[{y:'2022',h:5.6,pct:'56%'},{y:'2023',h:6.4,pct:'64%'},{y:'2024',h:7.27,pct:'72.7%'},{y:'2025',h:7.44,pct:'74.4%'}];
+  function colorFor(i,n){ return new THREE.Color().setHSL(0.08 - (i/(n-1))*0.08, 1, 0.5); }
+
+  const labelsWrap=document.getElementById('chart-labels');
+  const bars=[];
+  function buildRow(data, xOffset, zPos, keyName){
+    data.forEach((d,i)=>{
+      const geo=new THREE.BoxGeometry(1.6,1,1.6);
+      const mat=new THREE.MeshStandardMaterial({color: colorFor(i,data.length), emissive: colorFor(i,data.length), emissiveIntensity:0.3});
+      const mesh=new THREE.Mesh(geo,mat);
+      const x = xOffset + i*2.4;
+      mesh.position.set(x,0,zPos);
+      mesh.scale.y=0.001;
+      scene.add(mesh);
+      const isLast = i===data.length-1;
+      if(isLast){ const l=new THREE.PointLight(colorFor(i,data.length).getHex(),2,15); l.position.set(x,d.h+3,zPos); scene.add(l); }
+      const lbl=document.createElement('div');
+      lbl.className='chart-label';
+      lbl.innerHTML = keyName==='rank' ? `<b>${d.y}</b>RANK #${d.rank}` : `<b>${d.y}</b>${d.pct}`;
+      labelsWrap.appendChild(lbl);
+      bars.push({mesh,d,x,zPos,lbl,targetH:d.h});
+    });
+  }
+  buildRow(rankData, -5, -4, 'rank');
+  buildRow(pctData, -3, 3, 'pct');
+
+  function project(x,y,z){
+    const v=new THREE.Vector3(x,y,z).project(camera);
+    return { x:(v.x*0.5+0.5)*canvas.clientWidth, y:(-v.y*0.5+0.5)*canvas.clientHeight };
+  }
+
+  ScrollTrigger.create({
+    trigger:'#sec2', start:'top 70%',
+    onEnter:()=>{ bars.forEach((b,i)=> gsap.to(b.mesh.scale,{y:1,duration:1,delay:i*0.06,ease:'power3.out',
+      onUpdate:()=>{ b.mesh.position.y=b.mesh.scale.y*b.targetH/2; }})); }
+  });
+
+  let resizeObs = new ResizeObserver(()=>{
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(canvas);
+
+  function animate(){
+    requestAnimationFrame(animate);
+    bars.forEach(b=>{
+      const p=project(b.x, b.mesh.scale.y*b.targetH+0.6, b.zPos);
+      b.lbl.style.left=p.x+'px'; b.lbl.style.top=p.y+'px';
+    });
+    renderer.render(scene,camera);
+  }
+  animate();
+
+  /* ---- KPI grid ---- */
+  const kpis=[
+    {icon:'🚗',label:'AVG CITY SPEED',val:16.6,dec:1,suf:' km/h'},
+    {icon:'🌙',label:'EVENING PEAK SPEED',val:13.2,dec:1,suf:' km/h'},
+    {icon:'☀️',label:'MORNING PEAK SPEED',val:14.6,dec:1,suf:' km/h'},
+    {icon:'⏱',label:'TIME PER 10KM (2025)',custom:'36 min 9 sec'},
+    {icon:'⏱',label:'TIME PER 10KM (2024)',custom:'34 min 10 sec'},
+    {icon:'📅',label:'HOURS LOST / YEAR 2025',custom:'168 hrs 40 min'},
+    {icon:'📅',label:'HOURS LOST / YEAR 2024',custom:'155 hrs'},
+    {icon:'💸',label:'ANNUAL ECONOMIC LOSS',val:19725,dec:0,pre:'₹',suf:' Cr'},
+    {icon:'🚘',label:'REGISTERED VEHICLES',val:12,dec:0,suf:' Million+'},
+    {icon:'📈',label:'NEW VEHICLES ADDED DAILY',val:2000,dec:0,pre:'~'},
+  ];
+  const grid=document.getElementById('kpi-grid');
+  kpis.forEach(k=>{
+    const el=document.createElement('div');
+    el.className='card kpi-card';
+    el.innerHTML=`<div class="icon">${k.icon}</div><div class="label uc">${k.label}</div><div class="value">${k.custom? k.custom : '0'}</div>`;
+    grid.appendChild(el);
+    if(!k.custom){
+      onEnterOnce(el, ()=> countUp(el.querySelector('.value'), k.val, 1.6, k.dec, k.pre||'', k.suf||''));
+    } else {
+      onEnterOnce(el, ()=> gsap.from(el,{opacity:0,y:20,duration:0.6}));
+    }
+  });
+  gsap.from('#kpi-grid .kpi-card', { scrollTrigger:{trigger:'#kpi-grid', start:'top 90%'}, opacity:0, y:30, stagger:0.1, duration:0.6 });
+})();
+
+/* ============================================================
+   SECTION 3 — INTERACTIVE MAP (hotspots, slider, orbit)
+   ============================================================ */
+const HOTSPOTS=[
+  {n:'Silk Board Junction', x:0, z:0, sev:10, r:2.5, color:0xff0000, speed:4, desc:"World's most congested junction", cat:'CRITICAL'},
+  {n:'Hebbal Junction', x:-5, z:22, sev:9, r:2.2, color:0xff1a1a, speed:5, desc:'Airport corridor choke, NH44 merge', cat:'CRITICAL'},
+  {n:'KR Puram / Tin Factory', x:26, z:10, sev:8, r:2.0, color:0xff4400, speed:6, desc:'East BLR merge — Old Madras chaos', cat:'SEVERE'},
+  {n:'Kadubeesanahalli', x:19, z:-5, sev:8, r:2.0, color:0xff4400, speed:6, desc:'ORR tech corridor — ITPL overspill', cat:'SEVERE'},
+  {n:'Iblur Junction', x:16, z:-13, sev:8, r:2.0, color:0xff4400, speed:5, desc:'ORR × Sarjapur — IT commute hell', cat:'SEVERE'},
+  {n:'Goraguntepalya', x:-21, z:16, sev:7, r:1.6, color:0xff6600, speed:8, desc:'Tumkur Road pinch point', cat:'SEVERE'},
+  {n:'Sarakki Junction', x:-8, z:-19, sev:7, r:1.6, color:0xff6600, speed:9, desc:'Kanakapura Road south BLR', cat:'SEVERE'},
+  {n:'Dairy Circle', x:-3, z:-11, sev:7, r:1.6, color:0xff6600, speed:8, desc:'Bannerghatta–Hosur Road nexus', cat:'SEVERE'},
+  {n:'Banashankari', x:-13, z:-22, sev:6, r:1.2, color:0xff8800, speed:11, desc:'South BLR transit/commercial hub', cat:'HIGH'},
+  {n:'Kumaraswamy Layout', x:-19, z:-27, sev:6, r:1.2, color:0xff8800, speed:12, desc:'High local + through traffic', cat:'HIGH'},
+];
+const CORRIDORS=[
+  {pts:[[-30,10],[-15,-10],[0,-15],[15,-10],[25,5],[15,20],[0,25],[-15,20],[-30,10]], color:0xff2d2d, op:0.9},
+  {pts:[[0,0],[5,-40]], color:0xff8c00, op:0.8},
+  {pts:[[0,0],[20,-30]], color:0xff8c00, op:0.8},
+  {pts:[[0,0],[-10,-40]], color:0xff8c00, op:0.8},
+  {pts:[[0,0],[-5,45]], color:0xff6b00, op:0.7},
+  {pts:[[0,0],[-35,25]], color:0xff6b00, op:0.7},
+  {pts:[[0,0],[40,10]], color:0xff6b00, op:0.7},
+  {pts:[[0,0],[30,20]], color:0xff6b00, op:0.7},
+];
+(function section3(){
+  const canvas=document.getElementById('map-canvas');
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(45,1,0.1,300);
+  let camDist=90, camTheta=0.6, camPhi=0.9;
+  scene.add(new THREE.AmbientLight(0x222233,1.4));
+
+  const plane=new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({color:0x0d0d1a}));
+  plane.rotation.x=-Math.PI/2; scene.add(plane);
+  const gridHelper=new THREE.GridHelper(120,40,0x333355,0x1a1a2e); scene.add(gridHelper);
+
+  const roadMats=[];
+  CORRIDORS.forEach(c=>{
+    const pts=[]; c.pts.forEach(p=>pts.push(new THREE.Vector3(p[0],0.15,p[1])));
+    const geo=new THREE.BufferGeometry().setFromPoints(pts);
+    const mat=new THREE.LineBasicMaterial({color:c.color, transparent:true, opacity:c.op, linewidth:2});
+    const line=new THREE.Line(geo,mat);
+    scene.add(line);
+    roadMats.push(mat);
+  });
+
+  const hotspotMeshes=[];
+  HOTSPOTS.forEach(h=>{
+    const geo=new THREE.SphereGeometry(h.r,24,24);
+    const mat=new THREE.MeshStandardMaterial({color:h.color, emissive:h.color, emissiveIntensity:0.7});
+    const mesh=new THREE.Mesh(geo,mat);
+    mesh.position.set(h.x,h.r,h.z);
+    mesh.userData=h;
+    scene.add(mesh);
+    const light=new THREE.PointLight(h.color,1.5,25);
+    light.position.set(h.x,h.r+2,h.z);
+    scene.add(light);
+    hotspotMeshes.push({mesh,light,data:h,baseScale:1});
+  });
+
+  /* ---- manual orbit controls with inertia ---- */
+  let dragging=false, lastX=0,lastY=0, velTheta=0, velPhi=0;
+  canvas.addEventListener('pointerdown', e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
+  addEventListener('pointerup', ()=>dragging=false);
+  addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    velTheta = (e.clientX-lastX)*0.005;
+    velPhi = (e.clientY-lastY)*0.004;
+    camTheta -= velTheta; camPhi -= velPhi;
+    camPhi = Math.max(0.3, Math.min(1.4, camPhi));
+    lastX=e.clientX; lastY=e.clientY;
+  });
+  canvas.addEventListener('wheel', e=>{ e.preventDefault(); camDist = Math.max(30, Math.min(160, camDist + e.deltaY*0.05)); }, {passive:false});
+
+  function updateCamera(){
+    if(!dragging){ camTheta -= velTheta; camPhi -= velPhi; velTheta*=0.92; velPhi*=0.92; }
+    camPhi = Math.max(0.3, Math.min(1.4, camPhi));
+    camera.position.set(
+      camDist*Math.sin(camPhi)*Math.sin(camTheta),
+      camDist*Math.cos(camPhi),
+      camDist*Math.sin(camPhi)*Math.cos(camTheta)
+    );
+    camera.lookAt(0,0,0);
+  }
+
+  /* ---- raycaster hover ---- */
+  const raycaster=new THREE.Raycaster();
+  const mouseNDC=new THREE.Vector2();
+  const tooltip=document.getElementById('map-tooltip');
+  let hovered=null;
+  canvas.addEventListener('pointermove', e=>{
+    const rect=canvas.getBoundingClientRect();
+    mouseNDC.x = ((e.clientX-rect.left)/rect.width)*2-1;
+    mouseNDC.y = -((e.clientY-rect.top)/rect.height)*2+1;
+    tooltip.style.left=(e.clientX-rect.left)+'px';
+    tooltip.style.top=(e.clientY-rect.top)+'px';
+  });
+
+  function checkHover(){
+    raycaster.setFromCamera(mouseNDC, camera);
+    const hits=raycaster.intersectObjects(hotspotMeshes.map(h=>h.mesh));
+    const cursorEl=document.getElementById('cursor');
+    if(hits.length){
+      const hit=hotspotMeshes.find(h=>h.mesh===hits[0].object);
+      if(hovered!==hit){
+        hovered=hit;
+        cursorEl.classList.add('crosshair');
+        const sevFilled = Array.from({length:10},(_,i)=> i<hit.data.sev ? '<span class="fill"></span>' : '<span></span>').join('');
+        tooltip.innerHTML = `<h3>${hit.data.n}</h3>
+          <span class="badge-cat" style="background:${hit.data.cat==='CRITICAL'?'#ff0000':hit.data.cat==='SEVERE'?'#ff6600':'#ff8800'};color:#000;">${hit.data.cat}</span>
+          <div id="sev-bar">${sevFilled}</div>
+          <div>🚗 ${hit.data.speed} km/h at peak</div>
+          <div class="muted" style="margin-top:6px;">${hit.data.desc}</div>`;
+        tooltip.style.display='block';
+      }
+    } else if(hovered){
+      hovered=null; tooltip.style.display='none'; cursorEl.classList.remove('crosshair');
+    }
+  }
+
+  /* ---- time of day slider ---- */
+  const slider=document.getElementById('time-slider');
+  const timeLabel=document.getElementById('time-label');
+  function applyTime(hour){
+    let mult, roadColorMix, label;
+    if(hour>=6 && hour<10){ mult=1.0; roadColorMix=0xff2d2d; label='🔴 MORNING PEAK'; }
+    else if(hour>=10 && hour<17){ mult=0.5; roadColorMix=0xff8c00; label='🟡 MIDDAY'; }
+    else if(hour>=17 && hour<21){ mult=1.3; roadColorMix=0xff0000; label='🔴🔴 EVENING PEAK — WORST'; }
+    else { mult=0.15; roadColorMix=0x2244aa; label='🔵 NIGHT — CLEAR'; }
+    hotspotMeshes.forEach(h=> gsap.to(h.mesh.scale,{x:mult,y:mult,z:mult,duration:0.8,ease:'power2.out'}));
+    hotspotMeshes.forEach(h=> gsap.to(h.light,{intensity:1.5*mult,duration:0.8}));
+    roadMats.forEach(m=>{
+      const target=new THREE.Color(roadColorMix);
+      gsap.to(m.color, {r:target.r,g:target.g,b:target.b,duration:0.8});
+    });
+    const hh=Math.floor(hour), mm=(hour%1)*60;
+    timeLabel.textContent = `TIME OF DAY: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} — ${label}`;
+  }
+  slider.addEventListener('input', ()=> applyTime(parseFloat(slider.value)));
+  applyTime(8);
+
+  const resizeObs = new ResizeObserver(()=>{
+    canvas.style.width='100%'; canvas.style.height='100%';
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(document.getElementById('sec3'));
+
+  let active=false;
+  function deactivate(){
+    active=false;
+    hovered=null; tooltip.style.display='none';
+    document.getElementById('cursor').classList.remove('crosshair');
+  }
+  ScrollTrigger.create({ trigger:'#sec3', start:'top bottom', end:'bottom top',
+    onEnter:()=>active=true, onEnterBack:()=>active=true, onLeave:deactivate, onLeaveBack:deactivate });
+
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!active) return;
+    updateCamera();
+    checkHover();
+    const t=performance.now()/1000;
+    hotspotMeshes.forEach((h,i)=>{
+      h.mesh.material.emissiveIntensity = 0.6 + Math.sin(t*2+i)*0.25;
+    });
+    renderer.render(scene,camera);
+  }
+  animate();
+})();
+
+/* ============================================================
+   SECTION 4 — ROADS OF SUFFERING (GSAP horizontal pin)
+   ============================================================ */
+const CORRIDOR_CARDS=[
+  { title:'OUTER RING ROAD (ORR)', sub:'The Daily Nightmare — K.R. Puram to Silk Board (17.3 km)',
+    stats:[['Designed capacity','4,800 PCU/hr'],['Actual peak load','10,400+ PCU/hr → 217% overload'],['Peak-hour speed','4–5 km/h'],['Daily users','~1 million IT employees']],
+    insight:'Every 1 km on ORR takes ~12 minutes at peak hour', viz:'capacity', fill:100, overflow:117 },
+  { title:'HEBBAL FLYOVER CORRIDOR', sub:'Airport to IT Hub — The Longest Commute',
+    stats:[['Total corridor','35+ km, Kempegowda Airport → Silk Board'],['Typical commute','90–120 min one-way at peak'],['NH44 merge factor','6 lanes merging to 3 at Hebbal'],['Worst-day record','185 min (May 2025)']],
+    insight:'A 35 km trip can take over 3 hours on the worst days', viz:'journey' },
+  { title:'SARJAPUR ROAD', sub:'Development Outran Infrastructure by a Decade',
+    stats:[['Original design','2-lane village road'],['Current daily load','80,000+ vehicles'],['Key bottleneck','Doddakannalli–Bellandur (2.3 km = 45 min)'],['Growth rate','Residential density +340% (2015–2025)']],
+    insight:'A road built for hundreds now carries tens of thousands', viz:'lanes' },
+  { title:'WHITEFIELD / ITPL CORRIDOR', sub:'Tech Hub Locked Inside a Bottleneck',
+    stats:[['ITPL daily footfall','200,000+ employees'],['Road access points','Only 3 entry/exit roads'],['Construction delays','Metro work reduced capacity -40%'],['Worst-day queue','8 km backup (Jan 2025)']],
+    insight:'200,000 employees funneled through 3 roads', viz:'queue' },
+  { title:'BANNERGHATTA ROAD', sub:'Metro Construction Makes It Temporarily Worse',
+    stats:[['Affected stretch','12 km (JP Nagar to Gottigere)'],['Lane reduction','From 6 to 3 during Metro Phase 3 work'],['Expected relief','Metro Phase 3 opens 2031–2032'],['Current speed','7–9 km/h at peak']],
+    insight:'Short-term pain for long-term relief — 6 years away', viz:'crosssection' },
+];
+(function section4(){
+  const track=document.getElementById('h-track');
+  CORRIDOR_CARDS.forEach(c=>{
+    const el=document.createElement('div');
+    el.className='card corridor-card';
+    let vizHTML='';
+    if(c.viz==='capacity'){
+      vizHTML=`<div class="bar-viz"><div class="fill"></div><div class="overflow"></div></div>`;
+    } else if(c.viz==='journey'){
+      vizHTML=`<div class="bar-viz"><div class="fill" style="background:var(--amber);"></div></div>`;
+    } else if(c.viz==='lanes'){
+      vizHTML=`<div style="display:flex;gap:6px;align-items:flex-end;height:40px;margin:16px 0;">
+        <div style="width:20%;height:30%;background:var(--blue-cool);border-radius:4px;"></div>
+        <div style="width:70%;height:100%;background:var(--red-primary);border-radius:4px;opacity:.4;"></div>
+      </div><div class="muted" style="font-size:.7rem;">2 lanes (built) vs 8 lanes (needed)</div>`;
+    } else if(c.viz==='queue'){
+      vizHTML=`<div style="display:flex;gap:3px;margin:16px 0;flex-wrap:wrap;">${Array.from({length:16}).map(()=>'<div style="width:8px;height:14px;background:var(--red-primary);border-radius:2px;"></div>').join('')}</div>`;
+    } else {
+      vizHTML=`<div style="margin:16px 0;font-size:.7rem;" class="muted">
+        <div style="height:14px;background:var(--blue-cool);border-radius:4px;margin-bottom:4px;">METRO TRACK (above)</div>
+        <div style="height:24px;background:rgba(255,255,255,.08);border-radius:4px;display:flex;align-items:center;justify-content:center;">3 LANES (reduced from 6)</div>
+      </div>`;
+    }
+    el.innerHTML=`<h3>${c.title}</h3><div class="sub">${c.sub}</div>
+      ${c.stats.map(s=>`<div class="stat-row"><span class="muted">${s[0]}</span><b>${s[1]}</b></div>`).join('')}
+      ${vizHTML}
+      <div class="insight">${c.insight}</div>`;
+    track.appendChild(el);
+  });
+
+  const pinWrap = document.querySelector('#sec4 .pin-wrap');
+  function getScrollAmount(){ return -(track.scrollWidth - innerWidth + 80); }
+  let tween = gsap.to(track, { x: getScrollAmount, ease:'none',
+    scrollTrigger:{ trigger:'#sec4', start:'top top', end:()=> '+='+(track.scrollWidth), scrub:0.6, pin:true, invalidateOnRefresh:true }
+  });
+
+  onEnterOnce(document.querySelector('.bar-viz .fill'), ()=>{}, {});
+  ScrollTrigger.create({ trigger:'#sec4', start:'top center', onEnter:()=>{
+    document.querySelectorAll('.corridor-card').forEach((el,i)=>{
+      const c=CORRIDOR_CARDS[i];
+      if(c.viz==='capacity'){
+        gsap.to(el.querySelector('.fill'),{width:'100%',duration:1,delay:0.3});
+        gsap.to(el.querySelector('.overflow'),{width:'54%',duration:1,delay:1.2,ease:'power2.out'});
+      } else if(c.viz==='journey'){
+        gsap.to(el.querySelector('.fill'),{width:'82%',duration:1.2,delay:0.3});
+      }
+    });
+  }});
+})();
+
+/* ============================================================
+   SECTION 5 — 3D TIMELINE (camera flies along a spline)
+   ============================================================ */
+const TIMELINE_NODES=[
+  {y:'2015',x:-40,h:2, color:0xff8c00, lines:['5.2M vehicles','Congestion 42%','Global Rank 32']},
+  {y:'2017',x:-28,h:3, color:0xff7700, lines:['6.8M vehicles','Metro Phase 1','(partial relief dip)']},
+  {y:'2019',x:-16,h:5, color:0xff5500, lines:['8.1M vehicles','Congestion 58%','Rank 18']},
+  {y:'2020',x:-8, h:1, color:0x00ff88, lines:['PANDEMIC DIP','Vehicles drop','Roads briefly clear']},
+  {y:'2021',x:0,  h:6, color:0xff4400, lines:['7.9M vehicles','Post-lockdown rebound','Surge begins']},
+  {y:'2022',x:8,  h:8, color:0xff3300, lines:['9.5M vehicles','Congestion 56%','Rank 10']},
+  {y:'2023',x:16, h:11,color:0xff2200, lines:['10.3M vehicles','Congestion 64%','Rank 6']},
+  {y:'2024',x:24, h:16,color:0xff1100, lines:['11.5M vehicles','Congestion 72.7%','Rank 3 · WFO mandates']},
+  {y:'2025',x:40, h:22,color:0xff0000, lines:['12M+ vehicles','Congestion 74.4%','RANK #2 · Worst day May 17: 183%']},
+];
+(function section5(){
+  const canvas=document.getElementById('timeline-canvas');
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(50,1,0.1,300);
+  scene.add(new THREE.AmbientLight(0x222233,1.3));
+
+  const curvePts = TIMELINE_NODES.map(n=> new THREE.Vector3(n.x, n.h*0.6, 0));
+  const curve = new THREE.CatmullRomCurve3(curvePts, false, 'catmullrom', 0.2);
+  const tubeGeo=new THREE.TubeGeometry(curve, 200, 0.25, 8, false);
+  const tubeMat=new THREE.MeshStandardMaterial({color:0xff2d2d, emissive:0xff2d2d, emissiveIntensity:0.5});
+  scene.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+  const nodeMeshes=[];
+  TIMELINE_NODES.forEach(n=>{
+    const geo=new THREE.SphereGeometry(n.y==='2025'?1.6:1,20,20);
+    const mat=new THREE.MeshStandardMaterial({color:n.color, emissive:n.color, emissiveIntensity:0.7});
+    const mesh=new THREE.Mesh(geo,mat);
+    mesh.position.set(n.x, n.h*0.6, 0);
+    scene.add(mesh);
+    const light=new THREE.PointLight(n.color, 1.5, 20);
+    light.position.copy(mesh.position);
+    scene.add(light);
+    nodeMeshes.push({mesh,light,data:n});
+  });
+
+  /* shockwave ring for the 2025 node */
+  const ringGeo=new THREE.RingGeometry(1.6,1.9,32);
+  const ringMat=new THREE.MeshBasicMaterial({color:0xff0000, transparent:true, opacity:0, side:THREE.DoubleSide});
+  const ring=new THREE.Mesh(ringGeo, ringMat);
+  ring.position.copy(nodeMeshes[nodeMeshes.length-1].mesh.position);
+  scene.add(ring);
+  let shockDone=false;
+
+  const tooltip=document.getElementById('node-tooltip');
+  const flash=document.getElementById('screen-flash');
+  let lastNode=-1;
+
+  const resizeObs=new ResizeObserver(()=>{
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(document.getElementById('sec5'));
+
+  let camT=0;
+  ScrollTrigger.create({
+    trigger:'#sec5-pin', start:'top top', end:'bottom bottom', scrub:0.6,
+    onUpdate:(self)=>{ camT = self.progress; }
+  });
+
+  function showNodeTooltip(n){
+    tooltip.innerHTML=`<div class="year" style="color:#${n.color.toString(16).padStart(6,'0')}">${n.y}</div>
+      ${n.lines.map(l=>`<div class="muted">${l}</div>`).join('')}`;
+    gsap.fromTo(tooltip,{opacity:0,y:-20},{opacity:1,y:0,duration:0.4});
+  }
+
+  const sec5Visible = makeVisibilityFlag(document.getElementById('sec5'));
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!sec5Visible.visible) return;
+    const t=performance.now()/1000;
+    nodeMeshes.forEach((n,i)=> n.mesh.material.emissiveIntensity = 0.5+Math.sin(t*2+i)*0.25);
+
+    const pos = curve.getPointAt(Math.min(0.999,Math.max(0,camT)));
+    const tangent = curve.getTangentAt(Math.min(0.999,Math.max(0,camT)));
+    camera.position.set(pos.x, pos.y+4, pos.z+14);
+    camera.lookAt(pos.x+tangent.x*4, pos.y, pos.z);
+
+    const idx = Math.round(camT*(TIMELINE_NODES.length-1));
+    if(idx!==lastNode){ lastNode=idx; showNodeTooltip(TIMELINE_NODES[idx]);
+      if(idx===TIMELINE_NODES.length-1 && !shockDone){
+        shockDone=true;
+        gsap.to(flash,{opacity:0.5,duration:0.15,yoyo:true,repeat:1});
+        ring.material.opacity=0.9; ring.scale.set(1,1,1);
+        gsap.to(ring.scale,{x:8,y:8,z:8,duration:1.4,ease:'power2.out'});
+        gsap.to(ring.material,{opacity:0,duration:1.4});
+      }
+    }
+    renderer.render(scene,camera);
+  }
+  animate();
+})();
+
+/* ---- root cause 4-panel grid ---- */
+(function rootCauses(){
+  const panels=[
+    {icon:'🚗',title:'VEHICLE EXPLOSION', lines:['12M+ registered vehicles. 2,000 added daily.','First Indian city to pass 2.5M private cars.','Ratio: 1 car per 1.1 residents (higher than most global cities)']},
+    {icon:'🏢',title:'RETURN TO OFFICE SHOCK', lines:['Major IT firms mandated full 5-day WFO in late 2024.','Congestion surged +18% within 3 months.','~500,000 additional peak-hour trips reintroduced overnight.']},
+    {icon:'🛣️',title:'FROZEN INFRASTRUCTURE', lines:['18 documented design flaws on ORR alone.','Metro serves 9.16 lakh/day — city needs 30 lakh minimum.','Ring road capacity frozen since 2001 design.']},
+    {icon:'🌧️',title:'CLIMATE AMPLIFIERS', lines:['May 17, 2025: Rain + fallen trees → 183% evening peak congestion.','15 minutes to travel 2.5 km. City effectively paralyzed.','Rainy season adds avg +31% congestion on top of baseline.']},
+  ];
+  const wrap=document.getElementById('root-causes');
+  panels.forEach(p=>{
+    const el=document.createElement('div');
+    el.className='card';
+    el.innerHTML=`<h4>${p.icon} ${p.title}</h4>${p.lines.map(l=>`<p>${l}</p>`).join('')}`;
+    wrap.appendChild(el);
+  });
+  gsap.from('#root-causes .card', { scrollTrigger:{trigger:'#root-causes',start:'top 85%'}, opacity:0, y:30, stagger:0.12, duration:0.6 });
+})();
+
+/* ============================================================
+   SECTION 6 — COUNT THE DAMAGE (particle rain + donuts + cards)
+   ============================================================ */
+(function section6(){
+  const canvas=document.getElementById('cost-canvas');
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(50,1,0.1,200);
+  camera.position.set(0,10,30); camera.lookAt(0,8,0);
+
+  const COUNT=300;
+  const positions=new Float32Array(COUNT*3);
+  const speeds=new Float32Array(COUNT);
+  for(let i=0;i<COUNT;i++){
+    positions[i*3]=(Math.random()-0.5)*40;
+    positions[i*3+1]=Math.random()*20;
+    positions[i*3+2]=(Math.random()-0.5)*20;
+    speeds[i]=0.05+Math.random()*0.08;
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  const mat=new THREE.PointsMaterial({color:0xffaa33, size:0.35, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false});
+  const points=new THREE.Points(geo,mat);
+  scene.add(points);
+  scene.add(new THREE.AmbientLight(0x222233,1));
+
+  const resizeObs=new ResizeObserver(()=>{
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(document.getElementById('sec6'));
+
+  const sec6Visible = makeVisibilityFlag(document.getElementById('sec6'));
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!sec6Visible.visible) return;
+    const pos=geo.attributes.position;
+    for(let i=0;i<COUNT;i++){
+      let y=pos.getY(i) - speeds[i];
+      if(y<0) y=20;
+      pos.setY(i,y);
+    }
+    pos.needsUpdate=true;
+    points.rotation.y += 0.0006;
+    renderer.render(scene,camera);
+  }
+  animate();
+
+  onEnterOnce(document.getElementById('cost-hero'), ()=> countUp(document.getElementById('cost-count'), 19725, 4, 0));
+
+  /* ---- donut charts (Canvas 2D) ---- */
+  const donutData=[
+    {label:'FUEL WASTAGE', pct:45, color:'#FF8C00'},
+    {label:'LOST PRODUCTIVITY', pct:40, color:'#FF2D2D'},
+    {label:'HEALTH & ENV', pct:15, color:'#AA0000'},
+  ];
+  const donutsWrap=document.getElementById('donuts');
+  donutData.forEach(d=>{
+    const item=document.createElement('div'); item.className='donut-item';
+    const cvs=document.createElement('canvas'); cvs.width=160; cvs.height=160;
+    item.appendChild(cvs);
+    const pctEl=document.createElement('div'); pctEl.className='pct'; pctEl.style.color=d.color; pctEl.textContent='0%';
+    const lbl=document.createElement('div'); lbl.className='muted uc'; lbl.style.fontSize='.75rem'; lbl.textContent=d.label;
+    item.appendChild(pctEl); item.appendChild(lbl);
+    donutsWrap.appendChild(item);
+    const ctx=cvs.getContext('2d');
+    function drawArc(pct){
+      ctx.clearRect(0,0,160,160);
+      ctx.lineWidth=18;
+      ctx.strokeStyle='rgba(255,255,255,0.08)';
+      ctx.beginPath(); ctx.arc(80,80,64,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle=d.color; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(80,80,64,-Math.PI/2, -Math.PI/2 + (pct/100)*Math.PI*2); ctx.stroke();
+    }
+    drawArc(0);
+    onEnterOnce(item, ()=>{
+      const obj={v:0};
+      gsap.to(obj,{v:d.pct, duration:1.6, ease:'power2.out', onUpdate:()=>{ drawArc(obj.v); pctEl.textContent=Math.round(obj.v)+'%'; }});
+    });
+  });
+
+  /* ---- comparison cards ---- */
+  const comps=[
+    '₹19,725 Cr = Could build 3 full metro lines',
+    '168 hours = 21 working days lost per person, per year',
+    '4.2 km in 15 min vs India avg 5.5 km — 24% less distance covered',
+    'India Congestion League: BLR 74% → Pune 71% → Mumbai 63% → Delhi 60% → Kolkata 59%',
+    'Worst single day: May 17 2025 — Evening peak hit 183% — 2.5 km in 15 min',
+    '12M vehicles × avg 30 min extra/day = 6 million person-hours wasted DAILY',
+  ];
+  const compWrap=document.getElementById('comparisons');
+  comps.forEach(c=>{ const el=document.createElement('div'); el.className='card'; el.textContent=c; compWrap.appendChild(el); });
+  gsap.from('#comparisons .card', { scrollTrigger:{trigger:'#comparisons',start:'top 90%'}, opacity:0, y:30, stagger:0.1, duration:0.6 });
+})();
+
+/* ============================================================
+   SECTION 7 — SOLUTIONS ROADMAP (vertical 3D timeline + cards)
+   ============================================================ */
+const SOLUTIONS=[
+  { cat:'TECHNOLOGY', catColor:'#FF2D2D', status:'✅ ACTIVE', title:'BATCS — AI Traffic Brain', sub:'Bengaluru Adaptive Traffic Control System',
+    keystat:'17% travel time reduction on live corridors', timeline:'DEPLOYED — May 2024 → Ongoing expansion', budget:'₹180 Cr (Phase 1) | ₹420 Cr (full rollout)',
+    back:`<h5>How it works</h5><p>AI cameras + sensors at intersections monitor real-time vehicle density. Dynamic signal timing replaces static 90-second timers. "Green wave" synchronization along major corridors. ITeMS cameras handle 87% of violations contactlessly.</p>
+      <h5>Current status</h5><p>✅ 165 junctions live (early 2025) · 🔄 Expansion to 400 more planned · 📍 Active: JC Road, Hosur Road, Bannerghatta Road</p>
+      <h5>Measured impact</h5><p>Travel time -17% · Avg speed +22% off-peak · Signal wait -35%</p>
+      <h5>Risk factors</h5><p>⚠️ Power outages disable AI signals · ⚠️ Limited effect at severely overloaded junctions · ⚠️ Doesn't reduce total vehicle volume</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★★☆☆</span> · Build disruption: <span class="stars">★☆☆☆☆</span></p>` },
+  { cat:'TRANSIT', catColor:'#00A8FF', status:'🔄 95% COMPLETE', title:'Namma Metro Phase 2', sub:'Pink Line + Blue Line — 175 km by Dec 2027',
+    keystat:'9.16 lakh daily riders (Apr 2026) → Target 10 lakh by end 2026', timeline:'2026–2027', budget:'₹14,788 Cr (Phase 2 total)',
+    back:`<h5>Milestones</h5><p>✅ Yellow Line (19.15 km) opened Aug 10 2025 — first driverless metro · 🔄 Pink Line P1 (7.5 km) Aug 2026 · 🔄 Pink Line P2 (13.76 km underground) Mar 2027 · 🔄 Blue Line 2A (~20 km) end 2026 · 🔄 Airport stretch mid-2027 · 🔄 KR Pura–Hebbal Dec 2027</p>
+      <h5>Ridership projections</h5><p>2026: 9.16 lakh/day · Target 2026: 10 lakh · 2030: 15 lakh · 2035: 25 lakh</p>
+      <h5>Congestion impact</h5><p>Every 1 lakh new riders ≈ 70,000 fewer car trips/day. Full Phase 2 ≈ -8 to -12% peak congestion on served corridors.</p>
+      <h5>Risk factors</h5><p>⚠️ Last-mile gaps reduce adoption · ⚠️ KR Pura–Hebbal segment highly complex · ⚠️ Airport line critical for Hebbal relief</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★★★☆</span> · Build disruption: <span class="stars">★★★☆☆</span></p>` },
+  { cat:'TRANSIT', catColor:'#00A8FF', status:'🔜 APPROVED', title:'Namma Metro Phase 3', sub:'Orange + Silver Lines — Double-Decker Innovation',
+    keystat:'32.15 km double-decker: metro above, 6-lane road below', timeline:'Construction 2026–2032', budget:'₹15,611 Cr (approved Aug 2024)',
+    back:`<h5>Line details</h5><p>Orange Line: JP Nagar 4th Phase → Kempapura (32.15 km, double-decker on ORR). Construction starts late 2026, opening mid-2031 to late 2032. Silver Line: Hosahalli → Kadabagere (12.5 km, Magadi Road), completion 2031–2032.</p>
+      <h5>Network targets</h5><p>2027: 175 km · 2030: 225 km · Long-term: 400–500 km (₹1.5 lakh crore masterplan)</p>
+      <h5>Double-decker innovation</h5><p>First in India: metro on upper deck, 6-lane road on lower deck. This redesign delayed Phase 3 by ~2 years vs original plan.</p>
+      <h5>Risk factors</h5><p>⚠️ No Indian precedent at this scale · ⚠️ ORR construction will worsen traffic 2026–2031 · ⚠️ Ridership only materializes post-2031</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★★★★</span> · Build disruption: <span class="stars">★★★★★</span></p>` },
+  { cat:'TRANSIT', catColor:'#00A8FF', status:'⏳ AWAITING APPROVAL', title:'Metro Phase 3A — Red Line', sub:'Hebbal to Sarjapur — 37.8 km',
+    keystat:'Would connect hotspot #2 (Hebbal) to hotspot #1 (Silk Board)', timeline:'DPR submitted April 2026 | Awaiting CCEA approval', budget:'TBD (revised DPR under review)',
+    back:`<h5>Route</h5><p>Hebbal → Sarjapur Road (37.8 km). Directly addresses the single most congested North-South spine from the Airport zone to Electronic City.</p>
+      <h5>Status</h5><p>April 2026: revised DPR submitted to Central Government. Awaiting CCEA approval — no firm construction start date yet. Estimated construction: 5–6 years post-approval.</p>
+      <h5>Why it matters</h5><p>Connects Hebbal (Rank #2 hotspot) to Silk Board (Rank #1 hotspot). Could remove 1.5–2 lakh car trips/day from the spine.</p>
+      <h5>Risk factors</h5><p>⚠️ Still in political/approval limbo · ⚠️ Even if approved 2026, earliest operation 2032+ · ⚠️ Complex land acquisition</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★★★★</span> · Build disruption: <span class="stars">★★★★☆</span></p>` },
+  { cat:'INFRASTRUCTURE', catColor:'#FF8C00', status:'🔨 UNDER CONSTRUCTION', title:'Hebbal–Silk Board Tunnel Road', sub:'16.75 km twin-tube, 6-lane underground',
+    keystat:'Phase 1 (2.23 km): foundation stone June 2026, opens Dec 2027', timeline:'Phase 1: 18 months | Full project by 2030', budget:'Phase 1: ₹1,139 Cr | Full: ₹17,000–17,780 Cr',
+    back:`<h5>Project scope</h5><p>16.75 km twin-tube, 6-lane underground tunnel, Hebbal Esteem Mall → Central Silk Board. BOOT model, toll ₹19/km. No two-wheelers allowed.</p>
+      <h5>Phase 1 (active)</h5><p>Hebbal Junction → UAS Staff Quarters (2.23 km). Foundation stone June 2026, cost ₹1,139 Cr, expected completion Dec 2027.</p>
+      <h5>Full timeline</h5><p>~50 months from full contract award. Target full opening: 2030. Phase 2: KR Puram → Mysore Road (~₹24,000+ Cr, separate tunnel).</p>
+      <h5>Controversy</h5><p>⚠️ BMLTA formally objected — deep tunnels incentivize more private cars · ⚠️ Contradicts 70% public transport share goal by 2035 · ⚠️ Rule 24 "deemed approval" bypassed BMLTA review · 💡 BMLTA alternative: signal-free ORR bypasses (cheaper, faster)</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★★☆☆</span> · Build disruption: <span class="stars">★★★★☆</span></p>` },
+  { cat:'INFRASTRUCTURE', catColor:'#FF8C00', status:'🔄 PLANNING / TENDERING', title:'Signal-Free Corridors & Flyovers', sub:'BBMP "Sugama Sanchara Bengaluru" Plan',
+    keystat:'110 km signal-free flyovers + 40 km double-decker corridors', timeline:'2025–2030', budget:'₹13,200 Cr + ₹9,000 Cr = ₹22,200 Cr',
+    back:`<h5>Signal-free flyovers (₹13,200 Cr)</h5><p>110 km connecting outer + inner ring roads for signal-free travel to the core. Status: detailed planning / tendering.</p>
+      <h5>Double-decker corridors (₹9,000 Cr)</h5><p>40 km dual-layer: 32.15 km on ORR (aligned with Metro Phase 3 Orange Line), 8 km on Magadi Road (aligned with Silver Line).</p>
+      <h5>Bottleneck fixes</h5><p>✅ Hebbal–Mekhri Circle Underpass ₹2,215 Cr (tender issued) · ✅ Iblur Junction Flyover 800m (proposed) · ✅ Raghavendra Swamy Mutt Jn (DPR issued) · ✅ Vega City Mall Jn (DPR issued)</p>
+      <h5>BMLTA alternatives</h5><p>Signal-free bypasses at Goraguntepalya, KR Puram–Benniganahalli, Silk Board–JD Mara — lower cost, faster.</p>
+      <h5>Risk factors</h5><p>⚠️ Years of construction disruption · ⚠️ Induced demand risk · ⚠️ Contested coordination between BBMP, GBA, BMLTA</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★★☆☆</span> · Build disruption: <span class="stars">★★★★★</span></p>` },
+  { cat:'POLICY', catColor:'#00FF88', status:'📋 FEASIBILITY STAGE', title:'Congestion Pricing', sub:'FASTag-based fee for peak-hour private vehicles',
+    keystat:'London -30% traffic · Stockholm -22% · Singapore since 1975', timeline:'Recommended March 2026 | Implementation 2027–2028 (est.)', budget:'Low capex — FASTag infra already exists',
+    back:`<h5>What it is</h5><p>Charge private vehicles to enter congested zones at peak hours, auto-deducted via FASTag — no new hardware needed.</p>
+      <h5>Proposed mechanism</h5><p>Target zone: Outer Ring Road first. Single-occupancy: pay fee (~₹50–100/entry est.). Carpooling (2+): EXEMPT. Revenue funds transit improvements.</p>
+      <h5>Status</h5><p>March 2026: Karnataka's 5th State Finance Commission formally recommended it. Currently in feasibility/consultation. No legislation passed yet.</p>
+      <h5>Global precedents</h5><p>London: -30% traffic, +25% bus speed (2003) · Stockholm: -22% within 6 months · Singapore: running since 1975.</p>
+      <h5>Projected impact</h5><p>15–25% fewer peak-hour car trips on ORR. Revenue could fund 2 more metro lines over 10 years.</p>
+      <h5>Risk factors</h5><p>⚠️ Politically unpopular · ⚠️ Ineffective without transit alternatives · ⚠️ 2–3 years away minimum</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★★★☆</span> · Build disruption: <span class="stars">★☆☆☆☆</span></p>` },
+  { cat:'INFRASTRUCTURE', catColor:'#FF8C00', status:'🔄 PLANNED', title:'Drain Roads + White-Topping', sub:'300 km link roads + 225 km durable resurfacing',
+    keystat:'Potholes slow monsoon traffic by avg 18%', timeline:'2025–2028', budget:'₹3,000 Cr (drains) + ₹6,000 Cr (white-topping)',
+    back:`<h5>Stormwater drain side roads (₹3,000 Cr)</h5><p>300 km of new link roads beside stormwater drains — new intra-city routes, dual purpose: traffic relief + flood resilience.</p>
+      <h5>White-topping (₹6,000 Cr)</h5><p>Convert asphalt to durable concrete — lasts 30 years vs 5–7. Reduces potholes, which slow traffic ~18% during monsoon. 225+ km targeted.</p>
+      <h5>IT corridor upgrade (₹400 Cr)</h5><p>22.7 km: Central Silk Board → KR Puram via Baiyappanahalli, with BMRCL — world-class surface, markings, pedestrian infra.</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★☆☆☆</span> · Build disruption: <span class="stars">★★☆☆☆</span></p>` },
+  { cat:'POLICY', catColor:'#00FF88', status:'💬 ADVOCACY STAGE', title:'Hybrid Work Policy Advocacy', sub:'Staggered hours + WFH — zero capex, fastest impact',
+    keystat:'WFO mandates correlated with +18% congestion in 3 months', timeline:'Implementable within 3 months if adopted', budget:'₹0 (zero capex)',
+    back:`<h5>The evidence</h5><p>Late-2024 WFO mandates by IT firms correlated with +18% congestion in 3 months — ~500,000 additional peak-hour trips reintroduced almost overnight. Pre-WFO growth: +8%/yr. Post-mandate: +20%/yr.</p>
+      <h5>The proposal</h5><p>Staggered start times (7:30 / 9:30 / 11:30 AM). Flexible WFH 2 days/week for IT (~1.5M workers). Government incentives for congestion-friendly employers.</p>
+      <h5>Projected impact</h5><p>2-day WFH for IT: -25% peak private vehicle trips on ORR. Staggered hours alone: -15% peak congestion, zero infrastructure spend.</p>
+      <h5>Challenges</h5><p>⚠️ Government can encourage, not mandate, private sector · ⚠️ Real estate industry opposes · ⚠️ Cultural "presence = productivity" mindset</p>
+      <h5>Potential / Disruption</h5><p>Congestion reduction: <span class="stars">★★★★☆</span> · Build disruption: <span class="stars">★☆☆☆☆</span></p>` },
+];
+(function section7(){
+  const canvas=document.getElementById('roadmap-canvas');
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(45,1,0.1,200);
+  camera.position.set(10,0,26);
+  scene.add(new THREE.AmbientLight(0x222233,1.3));
+
+  const N=SOLUTIONS.length;
+  const pts=[]; for(let i=0;i<N;i++) pts.push(new THREE.Vector3(Math.sin(i*0.4)*1.5, -14 + i*3.1, 0));
+  const curve=new THREE.CatmullRomCurve3(pts);
+  const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,100,0.18,8,false), new THREE.MeshStandardMaterial({color:0x888899, emissive:0x222233}));
+  scene.add(tube);
+  camera.lookAt(0,0,0);
+
+  const nodeMeshes=[];
+  SOLUTIONS.forEach((s,i)=>{
+    const col = new THREE.Color(s.catColor);
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(0.55,20,20), new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.3}));
+    mesh.position.copy(pts[i]);
+    scene.add(mesh);
+    const light=new THREE.PointLight(col.getHex(),0.6,8); light.position.copy(pts[i]); scene.add(light);
+    nodeMeshes.push({mesh,light});
+  });
+
+  const legend=document.getElementById('roadmap-legend');
+  [['#FF2D2D','Technology'],['#00A8FF','Transit'],['#FF8C00','Infrastructure'],['#00FF88','Policy']].forEach(([c,l])=>{
+    const s=document.createElement('span'); s.innerHTML=`<i style="background:${c};"></i>${l}`; legend.appendChild(s);
+  });
+
+  const resizeObs=new ResizeObserver(()=>{
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(document.getElementById('roadmap-canvas-wrap'));
+
+  let activeIdx=-1;
+  function highlightNode(i){
+    nodeMeshes.forEach((n,idx)=>{
+      gsap.to(n.mesh.scale,{x:idx===i?1.8:1,y:idx===i?1.8:1,z:idx===i?1.8:1,duration:0.4});
+      gsap.to(n.mesh.material,{emissiveIntensity: idx===i?1:0.3, duration:0.4});
+    });
+  }
+
+  /* ---- solution cards (flip on hover) — created before the
+     ScrollTrigger.batch below, which selects on elements already in the DOM ---- */
+  const wrap=document.getElementById('solution-cards');
+  SOLUTIONS.forEach((s,i)=>{
+    const el=document.createElement('div');
+    el.className='sol-card'; el.dataset.i=i;
+    el.style.opacity=0; el.style.transform='translateY(30px)';
+    el.innerHTML=`<div class="sol-card-inner">
+      <div class="sol-face front card solution">
+        <span class="sol-cat uc" style="color:${s.catColor};">${s.cat}</span>
+        <span class="sol-status">${s.status}</span>
+        <h3>${s.title}</h3>
+        <div class="sub">${s.sub}</div>
+        <div class="muted" style="font-size:.72rem;">${s.timeline}</div>
+        <div class="muted" style="font-size:.72rem;margin-top:4px;">${s.budget}</div>
+        <div class="keystat">${s.keystat}</div>
+      </div>
+      <div class="sol-face back card solution">${s.back}</div>
+    </div>`;
+    el.addEventListener('mouseenter', ()=> el.classList.add('flipped'));
+    el.addEventListener('mouseleave', ()=> el.classList.remove('flipped'));
+    el.addEventListener('click', ()=> el.classList.toggle('flipped'));
+    wrap.appendChild(el);
+  });
+
+  ScrollTrigger.batch('.sol-card', {
+    start:'top 80%',
+    onEnter: batch=> batch.forEach(el=> {
+      gsap.to(el,{opacity:1,y:0,duration:0.6});
+      ScrollTrigger.create({ trigger:el, start:'top 55%', end:'bottom 45%',
+        onToggle:(self)=>{ if(self.isActive){ activeIdx=+el.dataset.i; highlightNode(activeIdx);} }
+      });
+    })
+  });
+
+  const sec7Visible = makeVisibilityFlag(document.getElementById('sec7'));
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!sec7Visible.visible) return;
+    renderer.render(scene,camera);
+  }
+  animate();
+})();
+
+/* ============================================================
+   SECTION 8 — IMPACT MATRIX (Canvas 2D scatter + summary table)
+   ============================================================ */
+const BUBBLES=[
+  { name:'BATCS', x:1, y:35, budget:600, color:'#FF2D2D', phase:'ACTIVE', status:'✅ Active', budgetLabel:'₹600 Cr', impact:'Moderate', disruption:'★☆☆☆☆', risk:'Doesn\'t reduce total vehicle volume' },
+  { name:'Metro Phase 2', x:2, y:45, budget:14788, color:'#00A8FF', phase:'2026-2028', status:'🔄 95% Complete', budgetLabel:'₹14,788 Cr', impact:'High', disruption:'★★★☆☆', risk:'Last-mile connectivity gaps' },
+  { name:'Metro Phase 3', x:7, y:60, budget:15611, color:'#00A8FF', phase:'2029+', status:'🔜 Approved', budgetLabel:'₹15,611 Cr', impact:'Very High', disruption:'★★★★★', risk:'Double-decker has no precedent' },
+  { name:'Metro Phase 3A', x:9, y:70, budget:16000, color:'#00A8FF', phase:'2029+', status:'⏳ Awaiting Approval', budgetLabel:'TBD (large)', impact:'Critical', disruption:'★★★★☆', risk:'Still in political limbo', dashed:true },
+  { name:'Tunnel Road', x:6, y:30, budget:17780, color:'#FF8C00', phase:'2029+', status:'🔨 Under Construction', budgetLabel:'₹17,780 Cr', impact:'Moderate', disruption:'★★★★☆', risk:'May induce more car demand' },
+  { name:'Signal-Free/Flyovers', x:5, y:35, budget:22200, color:'#FF8C00', phase:'2026-2028', status:'🔄 Planning', budgetLabel:'₹22,200 Cr', impact:'Moderate', disruption:'★★★★★', risk:'Years of construction disruption' },
+  { name:'Congestion Pricing', x:3, y:40, budget:500, color:'#00FF88', phase:'2026-2028', status:'📋 Feasibility', budgetLabel:'₹500 Cr', impact:'High', disruption:'★☆☆☆☆', risk:'Politically unpopular' },
+  { name:'Drain Roads+Whitetop', x:4, y:20, budget:9000, color:'#FF8C00', phase:'2026-2028', status:'🔄 Planned', budgetLabel:'₹9,000 Cr', impact:'Low-Moderate', disruption:'★★☆☆☆', risk:'Supportive measure only' },
+  { name:'Hybrid Work Policy', x:0.5, y:45, budget:0, color:'#00FF88', phase:'ACTIVE', status:'💬 Advocacy', budgetLabel:'₹0', impact:'High', disruption:'★☆☆☆☆', risk:'Government cannot mandate private sector' },
+];
+(function section8(){
+  const canvas=document.getElementById('scatter-canvas');
+  const ctx=canvas.getContext('2d');
+  const tooltip=document.getElementById('scatter-tooltip');
+  const wrap=document.getElementById('scatter-wrap');
+  let dpr=Math.min(devicePixelRatio,2);
+  let W,H, pad={l:60,r:30,t:30,b:50};
+  let activeFilter='ALL';
+
+  function resize(){
+    W=canvas.clientWidth; H=520;
+    canvas.width=W*dpr; canvas.height=H*dpr;
+    canvas.style.height=H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    draw();
+  }
+  new ResizeObserver(resize).observe(wrap);
+
+  function xToPx(x){ return pad.l + (x/10)*(W-pad.l-pad.r); }
+  function yToPx(y){ return H-pad.b - (y/100)*(H-pad.t-pad.b); }
+  function sizeFor(budget){ return 8 + Math.sqrt(budget)/9; }
+
+  function matchesFilter(b){
+    if(activeFilter==='ALL') return true;
+    if(activeFilter==='ACTIVE') return b.phase==='ACTIVE';
+    if(activeFilter==='2026') return b.phase==='2026-2028';
+    if(activeFilter==='2029') return b.phase==='2029+';
+    if(activeFilter==='POLICY') return b.color==='#00FF88';
+    return true;
+  }
+
+  let hoverB=null;
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // axes
+    ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,H-pad.b); ctx.lineTo(W-pad.r,H-pad.b); ctx.stroke();
+    ctx.fillStyle='#888899'; ctx.font='11px Space Grotesk';
+    ctx.fillText('TIME TO IMPACT (years) →', W/2-80, H-14);
+    ctx.save(); ctx.translate(16,H/2+60); ctx.rotate(-Math.PI/2);
+    ctx.fillText('CONGESTION REDUCTION POTENTIAL % →',0,0); ctx.restore();
+    for(let g=0; g<=100; g+=20){ ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.beginPath(); ctx.moveTo(pad.l,yToPx(g)); ctx.lineTo(W-pad.r,yToPx(g)); ctx.stroke(); ctx.fillText(g+'%', 8, yToPx(g)+3); }
+    BUBBLES.forEach(b=>{
+      const match=matchesFilter(b);
+      const px=xToPx(b.x), py=yToPx(b.y), r=sizeFor(b.budget);
+      ctx.globalAlpha = match ? 1 : 0.12;
+      ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2);
+      ctx.fillStyle=b.color+'55'; ctx.fill();
+      ctx.lineWidth=2; ctx.strokeStyle=b.color;
+      if(b.dashed) ctx.setLineDash([4,3]); else ctx.setLineDash([]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = match ? 1 : 0.15;
+      ctx.fillStyle='#F0F0F0'; ctx.font='10px Space Grotesk';
+      ctx.fillText(b.name, px+r+4, py+3);
+      b._px=px; b._py=py; b._r=r;
+    });
+    ctx.globalAlpha=1;
+  }
+
+  canvas.addEventListener('mousemove', e=>{
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    let found=null;
+    BUBBLES.forEach(b=>{ if(Math.hypot(mx-b._px,my-b._py)<b._r+3) found=b; });
+    if(found){
+      tooltip.style.display='block';
+      tooltip.style.left=e.clientX+16+'px'; tooltip.style.top=e.clientY+'px';
+      tooltip.innerHTML=`<b style="color:${found.color}">${found.name}</b><br>${found.status} · ${found.budgetLabel}<br>Impact: ${found.impact}`;
+      canvas.style.cursor='pointer';
+    } else { tooltip.style.display='none'; canvas.style.cursor='default'; }
+  });
+  canvas.addEventListener('mouseleave', ()=> tooltip.style.display='none');
+
+  const filters=[['ALL','ALL'],['ACTIVE','ACTIVE NOW'],['2026','2026–2028'],['2029','2029+'],['POLICY','POLICY']];
+  const filterWrap=document.getElementById('filters');
+  filters.forEach(([key,label])=>{
+    const btn=document.createElement('button');
+    btn.textContent=label; btn.className= key==='ALL' ? 'active':'';
+    btn.addEventListener('click', ()=>{
+      activeFilter=key;
+      [...filterWrap.children].forEach(c=>c.classList.remove('active'));
+      btn.classList.add('active');
+      draw();
+    });
+    filterWrap.appendChild(btn);
+  });
+
+  onEnterOnce(wrap, resize);
+  resize();
+
+  /* ---- summary table ---- */
+  const table=document.getElementById('summary-table');
+  table.innerHTML=`<thead><tr><th>Solution</th><th>Status</th><th>Budget</th><th>Time to Impact</th><th>Congestion Impact</th><th>Disruption</th><th>Key Risk</th></tr></thead>
+    <tbody>${BUBBLES.map(b=>`<tr>
+      <td><span class="status-dot" style="background:${b.color};"></span>${b.name}</td>
+      <td>${b.status}</td><td>${b.budgetLabel}</td><td>${b.x} yrs</td><td>${b.impact}</td><td>${b.disruption}</td><td class="muted">${b.risk}</td>
+    </tr>`).join('')}</tbody>`;
+})();
+
+/* ============================================================
+   SECTION 9 — SPLIT-SCREEN VERDICT + TABS + CLOSING TEXT
+   ============================================================ */
+const SCENARIOS=[
+  { label:'NOTHING CHANGES', lines:['2027: Rank #1 globally. 80%+ congestion.','2030: 15M vehicles. System collapse risk.','Economic loss: ₹35,000 Cr/year'] },
+  { label:'CURRENT PLANS EXECUTE', lines:['2027: Metro 175 km live. -8% peak congestion.','2030: Metro 225 km + tunnel road. -20% congestion.','2035: 500 km metro + BATCS 400 junctions. Rank ~15.'] },
+  { label:'BEST CASE', lines:['Congestion pricing + hybrid work adopted: 2026','Metro Phase 3A approved: 2027','2035: 40 lakh daily metro riders. Rank #25. Congestion 74%→42%.'] },
+];
+(function section9(){
+  const canvas=document.getElementById('split-canvas');
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(50,1,0.1,200);
+  camera.position.set(0,10,26); camera.lookAt(0,0,0);
+  scene.add(new THREE.AmbientLight(0x222233,1.2));
+
+  /* left = red gridlocked dots crawling; right = green flowing fast dots */
+  const COUNT=240;
+  const geo=new THREE.BufferGeometry();
+  const positions=new Float32Array(COUNT*3);
+  const isRight=new Float32Array(COUNT);
+  for(let i=0;i<COUNT;i++){
+    const right = i%2===0;
+    isRight[i]=right?1:0;
+    positions[i*3] = (right? Math.random()*20 : -Math.random()*20);
+    positions[i*3+1] = (Math.random()-0.5)*10;
+    positions[i*3+2] = (Math.random()-0.5)*10;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  const clipLeft = new THREE.Plane(new THREE.Vector3(-1,0,0), 0);
+  const clipRight = new THREE.Plane(new THREE.Vector3(1,0,0), 0);
+  renderer.localClippingEnabled=true;
+
+  const redMesh=new THREE.Points(geo, new THREE.PointsMaterial({color:0xff2d2d,size:0.5,clippingPlanes:[clipLeft]}));
+  const greenMesh=new THREE.Points(geo, new THREE.PointsMaterial({color:0x00ff88,size:0.5,clippingPlanes:[clipRight]}));
+  scene.add(redMesh, greenMesh);
+
+  let splitX=0; // -10..10 world-ish, mapped from pixel drag
+  const handle=document.getElementById('divider-handle');
+  let dragging=false;
+  handle.addEventListener('pointerdown', ()=> dragging=true);
+  addEventListener('pointerup', ()=> dragging=false);
+  addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const pct=Math.max(0,Math.min(100,(e.clientX/innerWidth)*100));
+    handle.style.left=pct+'%';
+    splitX = (pct/100 - 0.5)*40;
+    clipLeft.constant = splitX;
+    clipRight.constant = -splitX;
+  });
+
+  const resizeObs=new ResizeObserver(()=>{
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(document.getElementById('sec9'));
+
+  const sec9Visible = makeVisibilityFlag(document.getElementById('sec9'));
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!sec9Visible.visible) return;
+    const pos=geo.attributes.position;
+    for(let i=0;i<COUNT;i++){
+      const right=isRight[i];
+      let x=pos.getX(i);
+      x += right? 0.12 : 0.01; // right flows fast, left crawls
+      if(right && x>20) x=-20;
+      if(!right && x>0) x=-20;
+      pos.setX(i,x);
+    }
+    pos.needsUpdate=true;
+    renderer.render(scene,camera);
+  }
+  animate();
+
+  /* ---- scenario tabs ---- */
+  const tabsWrap=document.getElementById('tabs');
+  const tabContent=document.getElementById('tab-content');
+  function renderTab(i){
+    tabContent.innerHTML=`<b class="uc" style="color:${i===0?'var(--red-primary)':i===1?'var(--amber)':'var(--green-safe)'}">${SCENARIOS[i].label}</b><br>${SCENARIOS[i].lines.map(l=>`<div style="margin-top:6px;">${l}</div>`).join('')}`;
+  }
+  SCENARIOS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.textContent=s.label; if(i===1) btn.classList.add('active');
+    btn.addEventListener('click', ()=>{
+      [...tabsWrap.children].forEach(c=>c.classList.remove('active'));
+      btn.classList.add('active'); renderTab(i);
+    });
+    tabsWrap.appendChild(btn);
+  });
+  renderTab(1);
+
+  /* ---- closing statement — animated line by line ---- */
+  gsap.utils.toArray('#closing .line').forEach((el,i)=>{
+    gsap.to(el, { opacity:1, scrollTrigger:{trigger:el,start:'top 85%'}, duration:0.8, delay:i*0.05 });
+  });
+  gsap.from('#closing-footer', { opacity:0, y:20, scrollTrigger:{trigger:'#closing-footer',start:'top 90%'}, duration:0.8 });
+})();
+
+/* ============================================================
+   SOUND TOGGLE — Web Audio ambient hum + horn spikes
+   ============================================================ */
+(function soundToggle(){
+  const btn=document.getElementById('sound-toggle');
+  let ctx, osc, gain, hornInterval, on=false;
+  btn.addEventListener('click', ()=>{
+    on=!on;
+    btn.textContent = on ? '🔊' : '🔇';
+    if(on){
+      ctx = ctx || new (window.AudioContext||window.webkitAudioContext)();
+      osc = ctx.createOscillator(); gain=ctx.createGain();
+      osc.type='sine'; osc.frequency.value=80; gain.gain.value=0.03;
+      osc.connect(gain); gain.connect(ctx.destination); osc.start();
+      hornInterval=setInterval(()=>{
+        if(Math.random()<0.3){
+          const h=ctx.createOscillator(), hg=ctx.createGain();
+          h.type='square'; h.frequency.value=300+Math.random()*200;
+          hg.gain.value=0.0001; h.connect(hg); hg.connect(ctx.destination);
+          h.start(); hg.gain.exponentialRampToValueAtTime(0.05, ctx.currentTime+0.05);
+          hg.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.4);
+          h.stop(ctx.currentTime+0.45);
+        }
+      }, 1500);
+    } else {
+      if(osc) osc.stop();
+      clearInterval(hornInterval);
+    }
+  });
+})();
+
+</script>
 </body>
 </html>
