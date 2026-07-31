@@ -928,10 +928,12 @@ const CORRIDORS=[
   const roadMats=[];
   CORRIDORS.forEach(c=>{
     const pts=[]; c.pts.forEach(p=>pts.push(new THREE.Vector3(p[0],0.15,p[1])));
-    const geo=new THREE.BufferGeometry().setFromPoints(pts);
-    const mat=new THREE.LineBasicMaterial({color:c.color, transparent:true, opacity:c.op, linewidth:2});
-    const line=new THREE.Line(geo,mat);
-    scene.add(line);
+    const curve=new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.1);
+    const segments=Math.max(8, pts.length*8);
+    const geo=new THREE.TubeGeometry(curve, segments, 0.4, 6, false);
+    const mat=new THREE.MeshStandardMaterial({color:c.color, emissive:c.color, emissiveIntensity:0.8, transparent:true, opacity:c.op});
+    const tube=new THREE.Mesh(geo, mat);
+    scene.add(tube);
     roadMats.push(mat);
   });
 
@@ -1023,6 +1025,7 @@ const CORRIDORS=[
     roadMats.forEach(m=>{
       const target=new THREE.Color(roadColorMix);
       gsap.to(m.color, {r:target.r,g:target.g,b:target.b,duration:0.8});
+      gsap.to(m.emissive, {r:target.r,g:target.g,b:target.b,duration:0.8});
     });
     const hh=Math.floor(hour), mm=(hour%1)*60;
     timeLabel.textContent = `TIME OF DAY: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} — ${label}`;
@@ -1110,13 +1113,11 @@ const CORRIDOR_CARDS=[
     track.appendChild(el);
   });
 
-  const pinWrap = document.querySelector('#sec4 .pin-wrap');
   function getScrollAmount(){ return -(track.scrollWidth - innerWidth + 80); }
-  let tween = gsap.to(track, { x: getScrollAmount, ease:'none',
+  gsap.to(track, { x: getScrollAmount, ease:'none',
     scrollTrigger:{ trigger:'#sec4', start:'top top', end:()=> '+='+(track.scrollWidth), scrub:0.6, pin:true, invalidateOnRefresh:true }
   });
 
-  onEnterOnce(document.querySelector('.bar-viz .fill'), ()=>{}, {});
   ScrollTrigger.create({ trigger:'#sec4', start:'top center', onEnter:()=>{
     document.querySelectorAll('.corridor-card').forEach((el,i)=>{
       const c=CORRIDOR_CARDS[i];
@@ -1456,6 +1457,34 @@ const SOLUTIONS=[
       gsap.to(n.mesh.material,{emissiveIntensity: idx===i?1:0.3, duration:0.4});
     });
   }
+
+  /* clicking a timeline node scrolls to and flips open its matching card */
+  const roadmapRaycaster=new THREE.Raycaster();
+  const roadmapMouse=new THREE.Vector2();
+  canvas.addEventListener('click', e=>{
+    const rect=canvas.getBoundingClientRect();
+    roadmapMouse.x=((e.clientX-rect.left)/rect.width)*2-1;
+    roadmapMouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
+    roadmapRaycaster.setFromCamera(roadmapMouse, camera);
+    const hits=roadmapRaycaster.intersectObjects(nodeMeshes.map(n=>n.mesh));
+    if(!hits.length) return;
+    const idx=nodeMeshes.findIndex(n=>n.mesh===hits[0].object);
+    activeIdx=idx; highlightNode(idx);
+    const card=wrap.children[idx];
+    if(card){
+      card.scrollIntoView({behavior:'smooth', block:'center'});
+      card.classList.add('flipped');
+      setTimeout(()=> card.classList.remove('flipped'), 2200);
+    }
+  });
+  canvas.addEventListener('mousemove', e=>{
+    const rect=canvas.getBoundingClientRect();
+    roadmapMouse.x=((e.clientX-rect.left)/rect.width)*2-1;
+    roadmapMouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
+    roadmapRaycaster.setFromCamera(roadmapMouse, camera);
+    const hovering = roadmapRaycaster.intersectObjects(nodeMeshes.map(n=>n.mesh)).length>0;
+    canvas.style.cursor = hovering ? 'pointer' : 'default';
+  });
 
   /* ---- solution cards (flip on hover) — created before the
      ScrollTrigger.batch below, which selects on elements already in the DOM ---- */
