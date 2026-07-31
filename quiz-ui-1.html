@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz UI — Centered Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --text: #14171f;
+    --muted: #6b7280;
+    --border: #e7e8ec;
+    --accent: #4f46e5;
+    --accent-soft: #eef0ff;
+    --correct: #16a34a;
+    --radius: 16px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .quiz-card {
+    width: 100%;
+    max-width: 560px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(20, 23, 31, 0.04), 0 12px 32px rgba(20, 23, 31, 0.06);
+    padding: 2.25rem 2.5rem 2rem;
+  }
+
+  .quiz-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  .quiz-brand {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  .quiz-timer {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+  }
+
+  .quiz-timer::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .progress-track {
+    height: 6px;
+    width: 100%;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 40%;
+    background: var(--accent);
+    border-radius: 999px;
+  }
+
+  .progress-label {
+    font-size: 0.8125rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .question-eyebrow {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin: 0 0 0.6rem;
+  }
+
+  .question-text {
+    font-size: 1.375rem;
+    font-weight: 600;
+    line-height: 1.4;
+    margin: 0 0 1.75rem;
+  }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+  }
+
+  .option {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.9rem 1.1rem;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .option:hover {
+    border-color: #cfd2da;
+  }
+
+  .option .letter {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  .option.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .option.selected .letter {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .option.correct {
+    border-color: var(--correct);
+    background: #f0fdf4;
+  }
+
+  .option.correct .letter {
+    background: var(--correct);
+    border-color: var(--correct);
+    color: #fff;
+  }
+
+  .quiz-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+  }
+
+  .dots span.done { background: var(--accent); }
+  .dots span.active { background: var(--accent); transform: scale(1.4); }
+
+  .nav-buttons {
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.65rem 1.4rem;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1.5px solid var(--border);
+  }
+
+  .btn-primary {
+    background: var(--text);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+  <div class="quiz-card">
+    <div class="quiz-top">
+      <span class="quiz-brand">World Capitals Quiz</span>
+      <span class="quiz-timer">00:24</span>
+    </div>
+
+    <div class="progress-track"><div class="progress-fill"></div></div>
+    <div class="progress-label">
+      <span>Question 4 of 10</span>
+      <span>40%</span>
+    </div>
+
+    <p class="question-eyebrow">Geography</p>
+    <h1 class="question-text">Which city is the capital of Australia?</h1>
+
+    <div class="options">
+      <div class="option"><span class="letter">A</span> Sydney</div>
+      <div class="option selected"><span class="letter">B</span> Canberra</div>
+      <div class="option"><span class="letter">C</span> Melbourne</div>
+      <div class="option"><span class="letter">D</span> Perth</div>
+    </div>
+
+    <div class="quiz-footer">
+      <div class="dots">
+        <span class="done"></span>
+        <span class="done"></span>
+        <span class="done"></span>
+        <span class="active"></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="nav-buttons">
+        <button class="btn-ghost">Back</button>
+        <button class="btn-primary">Next</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
