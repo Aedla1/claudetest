@@ -22,6 +22,7 @@
 <!-- GSAP 3 + ScrollTrigger -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
 
 <style>
 /* ============================================================
@@ -566,6 +567,20 @@ import * as THREE from 'three';
 
 gsap.registerPlugin(ScrollTrigger);
 
+/* ---- smooth inertia scrolling (Lenis), synced to GSAP's own ticker so
+   every ScrollTrigger-driven animation (pins, scrubs, camera paths) reads
+   a buttery-smoothed scroll position instead of raw, jumpy wheel deltas ---- */
+const lenis = new Lenis({
+  duration: 1.1,
+  easing: t => (t===1 ? 1 : 1 - Math.pow(2, -10*t)),
+  smoothWheel: true,
+  wheelMultiplier: 1,
+  touchMultiplier: 1.2,
+});
+lenis.on('scroll', ScrollTrigger.update);
+gsap.ticker.add((time)=>{ lenis.raf(time*1000); });
+gsap.ticker.lagSmoothing(0);
+
 /* ---- custom cursor with lerp follow ---- */
 const cursorEl = document.getElementById('cursor');
 let curX=innerWidth/2, curY=innerHeight/2, tarX=curX, tarY=curY;
@@ -599,7 +614,7 @@ sections.forEach((s,i)=>{
   const d=document.createElement('div');
   d.className='dot'+(i===0?' active':'');
   d.title=s.dataset.nav;
-  d.addEventListener('click', ()=> s.scrollIntoView({behavior:'smooth'}));
+  d.addEventListener('click', ()=> lenis.scrollTo(s, {duration:1.4}));
   dotsWrap.appendChild(d);
 });
 ScrollTrigger.create({
@@ -849,8 +864,10 @@ function heroEntrance(){
   });
   resizeObs.observe(canvas);
 
+  const sec2Visible = makeVisibilityFlag(document.getElementById('sec2'));
   function animate(){
     requestAnimationFrame(animate);
+    if(!sec2Visible.visible) return;
     bars.forEach(b=>{
       const p=project(b.x, b.mesh.scale.y*b.targetH+0.6, b.zPos);
       b.lbl.style.left=p.x+'px'; b.lbl.style.top=p.y+'px';
@@ -1472,7 +1489,8 @@ const SOLUTIONS=[
     activeIdx=idx; highlightNode(idx);
     const card=wrap.children[idx];
     if(card){
-      card.scrollIntoView({behavior:'smooth', block:'center'});
+      const rect=card.getBoundingClientRect();
+      lenis.scrollTo(card, {offset: -(innerHeight/2 - rect.height/2), duration:1.2});
       card.classList.add('flipped');
       setTimeout(()=> card.classList.remove('flipped'), 2200);
     }
@@ -1503,7 +1521,7 @@ const SOLUTIONS=[
         <div class="muted" style="font-size:.72rem;margin-top:4px;">${s.budget}</div>
         <div class="keystat">${s.keystat}</div>
       </div>
-      <div class="sol-face back card solution">${s.back}</div>
+      <div class="sol-face back card solution" data-lenis-prevent>${s.back}</div>
     </div>`;
     el.addEventListener('mouseenter', ()=> el.classList.add('flipped'));
     el.addEventListener('mouseleave', ()=> el.classList.remove('flipped'));
