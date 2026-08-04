@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jigsaw Puzzle</title>
+<style>
+  :root {
+    color-scheme: light dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(160deg, #1b2432, #0f151f);
+    color: #eef2f7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 60px;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.6rem;
+    letter-spacing: 0.02em;
+  }
+  .subtitle {
+    margin: 0 0 18px;
+    color: #9fb0c3;
+    font-size: 0.95rem;
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    background: rgba(255,255,255,0.05);
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .toolbar label {
+    font-size: 0.85rem;
+    color: #b9c6d6;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  select, button {
+    font-size: 0.9rem;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: #263041;
+    color: #eef2f7;
+    cursor: pointer;
+  }
+  button {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    font-weight: 600;
+  }
+  button:hover { background: #2563eb; }
+  button.secondary {
+    background: #263041;
+    border-color: rgba(255,255,255,0.15);
+  }
+  button.secondary:hover { background: #313e52; }
+  .stats {
+    display: flex;
+    gap: 16px;
+    font-size: 0.9rem;
+    color: #b9c6d6;
+  }
+  .stats b { color: #eef2f7; }
+  .workspace-wrap {
+    position: relative;
+    max-width: 100%;
+    overflow: auto;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.45);
+  }
+  #workspace {
+    position: relative;
+    background:
+      repeating-linear-gradient(45deg, #182130 0 14px, #141b27 14px 28px);
+    border-radius: 16px;
+    touch-action: none;
+  }
+  #board {
+    position: absolute;
+    border: 3px dashed rgba(255,255,255,0.25);
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.3);
+  }
+  #boardGhost {
+    position: absolute;
+    top: 0; left: 0;
+    opacity: 0.16;
+    pointer-events: none;
+    display: block;
+  }
+  .piece {
+    position: absolute;
+    cursor: grab;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.55));
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .piece.dragging {
+    cursor: grabbing;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.6));
+    z-index: 500;
+  }
+  .piece.placed {
+    filter: none;
+    cursor: default;
+  }
+  #winOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5,8,14,0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  #winOverlay.show { display: flex; }
+  .win-card {
+    background: #182130;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 32px 40px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .win-card h2 { margin: 0 0 8px; font-size: 1.6rem; }
+  .win-card p { margin: 0 0 18px; color: #b9c6d6; }
+  footer {
+    margin-top: 20px;
+    font-size: 0.8rem;
+    color: #6b7a8d;
+    text-align: center;
+    max-width: 480px;
+  }
+</style>
+</head>
+<body>
+
+  <h1>🧩 Jigsaw Puzzle</h1>
+  <p class="subtitle">Drag the pieces into place to rebuild the picture.</p>
+
+  <div class="toolbar">
+    <label>Difficulty
+      <select id="difficulty">
+        <option value="3x3">3 × 3 (easy)</option>
+        <option value="4x4" selected>4 × 4 (medium)</option>
+        <option value="5x5">5 × 5 (hard)</option>
+        <option value="6x5">6 × 5 (expert)</option>
+      </select>
+    </label>
+    <button id="newPuzzleBtn">New Puzzle</button>
+    <button id="shuffleBtn" class="secondary">Shuffle Pieces</button>
+    <button id="ghostBtn" class="secondary">Toggle Guide</button>
+    <div class="stats">
+      <span>⏱ <b id="timer">0:00</b></span>
+      <span>🧩 <b id="progress">0 / 0</b></span>
+    </div>
+  </div>
+
+  <div class="workspace-wrap">
+    <div id="workspace"></div>
+  </div>
+
+  <footer>Piece shapes and the picture are generated on the fly — no image file needed. Swap in your own artwork later by changing <code>drawSourceImage()</code>.</footer>
+
+  <div id="winOverlay">
+    <div class="win-card">
+      <h2>🎉 Puzzle complete!</h2>
+      <p id="winTime">Solved in 0:00</p>
+      <button id="playAgainBtn">Play Again</button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const workspace = document.getElementById('workspace');
+  const difficultySel = document.getElementById('difficulty');
+  const timerEl = document.getElementById('timer');
+  const progressEl = document.getElementById('progress');
+  const winOverlay = document.getElementById('winOverlay');
+  const winTimeEl = document.getElementById('winTime');
+
+  const BOARD_W = 600, BOARD_H = 480;
+  const MARGIN = 90; // scatter margin around the board
+  const AREA_W = BOARD_W + MARGIN * 2;
+  const AREA_H = BOARD_H + MARGIN * 2;
+  const BOARD_X = MARGIN, BOARD_Y = MARGIN;
+  const SNAP_DIST = 22;
+
+  workspace.style.width = AREA_W + 'px';
+  workspace.style.height = AREA_H + 'px';
+
+  let ghostVisible = true;
+  let startTime = null;
+  let timerHandle = null;
+  let placedCount = 0;
+  let totalPieces = 0;
+  let solved = false;
+
+  // ---- 1. Draw the source picture onto an offscreen canvas -------------
+  function drawSourceImage() {
+    const c = document.createElement('canvas');
+    c.width = BOARD_W;
+    c.height = BOARD_H;
+    const ctx = c.getContext('2d');
+
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, BOARD_H);
+    sky.addColorStop(0, '#4fa8e0');
+    sky.addColorStop(0.6, '#bfe3f2');
+    sky.addColorStop(1, '#eef7e6');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+
+    // sun
+    const sunX = BOARD_W * 0.78, sunY = BOARD_H * 0.2, sunR = 46;
+    const glow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR * 2.4);
+    glow.addColorStop(0, 'rgba(255,241,150,0.9)');
+    glow.addColorStop(1, 'rgba(255,241,150,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffe066';
+    ctx.fill();
+
+    // clouds
+    function cloud(x, y, s) {
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      [[-1, 0, 1], [0, -0.4, 1.2], [1, 0.05, 1.1], [1.9, 0.15, 0.8], [-0.9, 0.25, 0.9]]
+        .forEach(([dx, dy, r]) => ctx.moveTo(x + dx * s, y + dy * s));
+      [[-1, 0, 1], [0, -0.4, 1.2], [1, 0.05, 1.1], [1.9, 0.15, 0.8], [-0.9, 0.25, 0.9]]
+        .forEach(([dx, dy, r]) => ctx.arc(x + dx * s, y + dy * s, r * s, 0, Math.PI * 2));
+      ctx.fill();
+    }
+    cloud(120, 90, 22);
+    cloud(320, 60, 16);
+
+    // distant hills
+    ctx.beginPath();
+    ctx.moveTo(0, BOARD_H * 0.62);
+    ctx.quadraticCurveTo(BOARD_W * 0.25, BOARD_H * 0.5, BOARD_W * 0.5, BOARD_H * 0.62);
+    ctx.quadraticCurveTo(BOARD_W * 0.75, BOARD_H * 0.72, BOARD_W, BOARD_H * 0.6);
+    ctx.lineTo(BOARD_W, BOARD_H);
+    ctx.lineTo(0, BOARD_H);
+    ctx.closePath();
+    ctx.fillStyle = '#8fc97a';
+    ctx.fill();
+
+    // near hill
+    ctx.beginPath();
+    ctx.moveTo(0, BOARD_H * 0.78);
+    ctx.quadraticCurveTo(BOARD_W * 0.3, BOARD_H * 0.62, BOARD_W * 0.62, BOARD_H * 0.8);
+    ctx.quadraticCurveTo(BOARD_W * 0.85, BOARD_H * 0.9, BOARD_W, BOARD_H * 0.8);
+    ctx.lineTo(BOARD_W, BOARD_H);
+    ctx.lineTo(0, BOARD_H);
+    ctx.closePath();
+    ctx.fillStyle = '#5fae4c';
+    ctx.fill();
+
+    // tree
+    const treeX = BOARD_W * 0.22, treeY = BOARD_H * 0.72;
+    ctx.fillStyle = '#7a4a26';
+    ctx.fillRect(treeX - 6, treeY, 12, 60);
+    ctx.fillStyle = '#3f8f3a';
+    [[0, -20, 34], [-24, 4, 28], [24, 4, 28]].forEach(([dx, dy, r]) => {
+      ctx.beginPath();
+      ctx.arc(treeX + dx, treeY + dy, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // a couple of little birds
+    ctx.strokeStyle = 'rgba(50,50,50,0.6)';
+    ctx.lineWidth = 2;
+    [[430, 130], [460, 110]].forEach(([x, y]) => {
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y);
+      ctx.quadraticCurveTo(x - 3, y - 8, x, y);
+      ctx.quadraticCurveTo(x + 3, y - 8, x + 8, y);
+      ctx.stroke();
+    });
+
+    return c;
+  }
+
+  // ---- 2. Build the jigsaw edge curves ----------------------------------
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  // Returns the 5 key points + 4 control points of a wavy edge from (x0,y0)->(x1,y1)
+  function makeEdge(x0, y0, x1, y1) {
+    const dx = x1 - x0, dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    const ux = dx / len, uy = dy / len;
+    const nx = -uy, ny = ux;
+    const sign = Math.random() < 0.5 ? -1 : 1;
+    const knob = len * rand(0.16, 0.22) * sign;
+    const wobble = rand(-0.03, 0.03) * len;
+    const pt = (t, off) => ({
+      x: x0 + ux * (len * t + wobble * (t - 0.5) * 0) + nx * off,
+      y: y0 + uy * (len * t) + ny * off
+    });
+    const p0 = { x: x0, y: y0 };
+    const p1 = pt(0.36, 0);
+    const p2 = pt(0.5, knob * 1.6);
+    const p3 = pt(0.64, 0);
+    const p4 = { x: x1, y: y1 };
+    const c1a = pt(0.36, knob);
+    const c2a = pt(0.46, knob * 1.65);
+    const c1b = pt(0.54, knob * 1.65);
+    const c2b = pt(0.64, knob);
+    return { p0, p1, p2, p3, p4, c1a, c2a, c1b, c2b };
+  }
+
+  function edgeForward(ctx, e) {
+    ctx.lineTo(e.p1.x, e.p1.y);
+    ctx.bezierCurveTo(e.c1a.x, e.c1a.y, e.c2a.x, e.c2a.y, e.p2.x, e.p2.y);
+    ctx.bezierCurveTo(e.c1b.x, e.c1b.y, e.c2b.x, e.c2b.y, e.p3.x, e.p3.y);
+    ctx.lineTo(e.p4.x, e.p4.y);
+  }
+  function edgeBackward(ctx, e) {
+    ctx.lineTo(e.p3.x, e.p3.y);
+    ctx.bezierCurveTo(e.c2b.x, e.c2b.y, e.c1b.x, e.c1b.y, e.p2.x, e.p2.y);
+    ctx.bezierCurveTo(e.c2a.x, e.c2a.y, e.c1a.x, e.c1a.y, e.p1.x, e.p1.y);
+    ctx.lineTo(e.p0.x, e.p0.y);
+  }
+
+  function buildPuzzle(rows, cols) {
+    const pw = BOARD_W / cols, ph = BOARD_H / rows;
+
+    // horizontal edges: hEdges[r][c] is the line under row r (r = 0..rows-2)
+    const hEdges = [];
+    for (let r = 0; r < rows - 1; r++) {
+      const row = [];
+      for (let c = 0; c < cols; c++) {
+        row.push(makeEdge(c * pw, (r + 1) * ph, (c + 1) * pw, (r + 1) * ph));
+      }
+      hEdges.push(row);
+    }
+    // vertical edges: vEdges[c][r] is the line right of column c (c = 0..cols-2)
+    const vEdges = [];
+    for (let c = 0; c < cols - 1; c++) {
+      const col = [];
+      for (let r = 0; r < rows; r++) {
+        col.push(makeEdge((c + 1) * pw, r * ph, (c + 1) * pw, (r + 1) * ph));
+      }
+      vEdges.push(col);
+    }
+
+    function tracePiece(ctx, r, c) {
+      const x0 = c * pw, y0 = r * ph, x1 = (c + 1) * pw, y1 = (r + 1) * ph;
+      ctx.moveTo(x0, y0);
+      // top
+      if (r === 0) ctx.lineTo(x1, y0);
+      else edgeForward(ctx, hEdges[r - 1][c]);
+      // right
+      if (c === cols - 1) ctx.lineTo(x1, y1);
+      else edgeForward(ctx, vEdges[c][r]);
+      // bottom (right -> left)
+      if (r === rows - 1) ctx.lineTo(x0, y1);
+      else edgeBackward(ctx, hEdges[r][c]);
+      // left (bottom -> top)
+      if (c === 0) ctx.lineTo(x0, y0);
+      else edgeBackward(ctx, vEdges[c - 1][r]);
+      ctx.closePath();
+    }
+
+    return { rows, cols, pw, ph, tracePiece };
+  }
+
+  // ---- 3. Render pieces as DOM canvases ---------------------------------
+  let pieceEls = [];
+  let dragState = null;
+
+  function clearWorkspace() {
+    workspace.innerHTML = '';
+    pieceEls = [];
+  }
+
+  function buildGhost(sourceCanvas) {
+    const ghost = document.createElement('img');
+    ghost.id = 'boardGhost';
+    ghost.src = sourceCanvas.toDataURL();
+    ghost.width = BOARD_W;
+    ghost.height = BOARD_H;
+    ghost.style.display = ghostVisible ? 'block' : 'none';
+    return ghost;
+  }
+
+  function newPuzzle() {
+    stopTimer();
+    solved = false;
+    winOverlay.classList.remove('show');
+    const [cols, rows] = difficultySel.value.split('x').map(Number);
+    clearWorkspace();
+
+    const board = document.createElement('div');
+    board.id = 'board';
+    board.style.left = BOARD_X + 'px';
+    board.style.top = BOARD_Y + 'px';
+    board.style.width = BOARD_W + 'px';
+    board.style.height = BOARD_H + 'px';
+    workspace.appendChild(board);
+
+    const source = drawSourceImage();
+    board.appendChild(buildGhost(source));
+
+    const puzzle = buildPuzzle(rows, cols);
+    const margin = Math.round(Math.min(puzzle.pw, puzzle.ph) * 0.45);
+
+    totalPieces = rows * cols;
+    placedCount = 0;
+    updateProgress();
+
+    const pieces = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cnv = document.createElement('canvas');
+        cnv.className = 'piece';
+        const w = puzzle.pw + margin * 2, h = puzzle.ph + margin * 2;
+        cnv.width = w;
+        cnv.height = h;
+        const ctx = cnv.getContext('2d');
+
+        ctx.save();
+        ctx.translate(margin - c * puzzle.pw, margin - r * puzzle.ph);
+        ctx.beginPath();
+        puzzle.tracePiece(ctx, r, c);
+        ctx.closePath();
+        ctx.save();
+        ctx.clip();
+        ctx.drawImage(source, 0, 0);
+        ctx.restore();
+        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.stroke();
+        ctx.restore();
+
+        const targetX = BOARD_X + c * puzzle.pw - margin;
+        const targetY = BOARD_Y + r * puzzle.ph - margin;
+
+        pieces.push({ el: cnv, targetX, targetY, w, h, placed: false });
+      }
+    }
+
+    scatterPieces(pieces);
+    pieces.forEach(p => {
+      workspace.appendChild(p.el);
+      attachDragHandlers(p);
+    });
+    pieceEls = pieces;
+  }
+
+  function scatterPieces(pieces) {
+    pieces.forEach(p => {
+      const x = rand(0, AREA_W - p.w);
+      const y = rand(0, AREA_H - p.h);
+      p.el.style.left = x + 'px';
+      p.el.style.top = y + 'px';
+      p.el.classList.remove('placed');
+      p.placed = false;
+      p.el.style.pointerEvents = 'auto';
+    });
+    placedCount = 0;
+    updateProgress();
+  }
+
+  function bringToFront(p) {
+    workspace.appendChild(p.el);
+  }
+
+  // A single active drag at a time, tracked via document-level listeners so the
+  // dragged piece keeps following the pointer even if it momentarily slips out
+  // from under the cursor (fast moves, touch, etc.) rather than relying on
+  // per-element hit-testing.
+  let dragOffX = 0, dragOffY = 0;
+
+  function attachDragHandlers(p) {
+    p.el.addEventListener('pointerdown', (ev) => {
+      if (p.placed || solved || dragState) return;
+      ev.preventDefault();
+      const rect = p.el.getBoundingClientRect();
+      dragOffX = ev.clientX - rect.left;
+      dragOffY = ev.clientY - rect.top;
+      dragState = p;
+      p.el.classList.add('dragging');
+      bringToFront(p);
+      startTimerIfNeeded();
+    });
+  }
+
+  document.addEventListener('pointermove', (ev) => {
+    if (!dragState) return;
+    const wsRect = workspace.getBoundingClientRect();
+    const x = ev.clientX - wsRect.left - dragOffX;
+    const y = ev.clientY - wsRect.top - dragOffY;
+    dragState.el.style.left = x + 'px';
+    dragState.el.style.top = y + 'px';
+  });
+
+  function releaseDrag() {
+    const p = dragState;
+    if (!p) return;
+    dragState = null;
+    p.el.classList.remove('dragging');
+    const x = parseFloat(p.el.style.left);
+    const y = parseFloat(p.el.style.top);
+    const d = Math.hypot(x - p.targetX, y - p.targetY);
+    if (d < SNAP_DIST) {
+      p.el.style.left = p.targetX + 'px';
+      p.el.style.top = p.targetY + 'px';
+      p.el.classList.add('placed');
+      p.el.style.pointerEvents = 'none';
+      p.placed = true;
+      placedCount++;
+      updateProgress();
+      checkWin();
+    }
+  }
+  document.addEventListener('pointerup', releaseDrag);
+  document.addEventListener('pointercancel', releaseDrag);
+
+  function updateProgress() {
+    progressEl.textContent = `${placedCount} / ${totalPieces}`;
+  }
+
+  function checkWin() {
+    if (placedCount === totalPieces) {
+      solved = true;
+      stopTimer();
+      winTimeEl.textContent = 'Solved in ' + timerEl.textContent;
+      winOverlay.classList.add('show');
+    }
+  }
+
+  function startTimerIfNeeded() {
+    if (startTime !== null) return;
+    startTime = Date.now();
+    timerHandle = setInterval(updateTimer, 1000);
+  }
+  function updateTimer() {
+    const secs = Math.floor((Date.now() - startTime) / 1000);
+    const m = Math.floor(secs / 60), s = secs % 60;
+    timerEl.textContent = m + ':' + String(s).padStart(2, '0');
+  }
+  function stopTimer() {
+    clearInterval(timerHandle);
+    timerHandle = null;
+    startTime = null;
+    timerEl.textContent = '0:00';
+  }
+
+  document.getElementById('newPuzzleBtn').addEventListener('click', newPuzzle);
+  document.getElementById('shuffleBtn').addEventListener('click', () => {
+    if (!pieceEls.length) return;
+    stopTimer();
+    winOverlay.classList.remove('show');
+    solved = false;
+    scatterPieces(pieceEls);
+  });
+  document.getElementById('ghostBtn').addEventListener('click', () => {
+    ghostVisible = !ghostVisible;
+    const g = document.getElementById('boardGhost');
+    if (g) g.style.display = ghostVisible ? 'block' : 'none';
+  });
+  document.getElementById('playAgainBtn').addEventListener('click', () => {
+    winOverlay.classList.remove('show');
+    newPuzzle();
+  });
+  difficultySel.addEventListener('change', newPuzzle);
+
+  newPuzzle();
+})();
+</script>
+</body>
+</html>
